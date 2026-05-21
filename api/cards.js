@@ -2,18 +2,13 @@ import { google } from 'googleapis';
 
 const SHEET_ID = process.env.SHEET_ID;
 
-// 디버그 로그
-function log(...args) {
-  console.log('[kanban]', ...args);
-}
-
 // 캘린더 라벨 → 캘린더 ID 매핑
 const CALENDAR_MAP = {
-  family:   'j5219s5glr8n823suh66oss4uc@group.calendar.google.com',   // 가족 → 에원♡준석
-  junseok:  'jvi1v3t6b645cum5is31h9vfn8@group.calendar.google.com',   // 준석 → 준석 개인 스케줄
-  default:  'gogoist0524@gmail.com',                                    // 기본 → 이준석
-  business: '333e5d8a6fc310fbb2095f16e93957f85fe72a1f02dd963061fea9a3192ba4b8@group.calendar.google.com', // 대상업무
-  noupdate: null, // 미분류 → 캘린더 등록 안 함
+  family:   'j5219s5glr8n823suh66oss4uc@group.calendar.google.com',
+  junseok:  'jvi1v3t6b645cum5is31h9vfn8@group.calendar.google.com',
+  default:  'gogoist0524@gmail.com',
+  business: '333e5d8a6fc310fbb2095f16e93957f85fe72a1f02dd963061fea9a3192ba4b8@group.calendar.google.com',
+  noupdate: null,
 };
 
 async function getAuth() {
@@ -39,7 +34,7 @@ export default async function handler(req, res) {
   const auth = await getAuth();
   const sheets = google.sheets({ version: 'v4', auth });
   const calendar = google.calendar({ version: 'v3', auth });
-  const { boardId, id, action } = req.query;
+  const { boardId, id } = req.query;
   const sheetName = boardId === 'personal' ? 'personal' : 'work';
 
   try {
@@ -69,10 +64,14 @@ export default async function handler(req, res) {
       const c = req.body;
       let calEventId = '';
 
-      // 캘린더 등록 (마감일 있고 미분류 아닌 경우)
-      if (c.dueDate && CALENDAR_MAP[c.labelId]) {
+      console.log('[DEBUG] POST card:', JSON.stringify(c));
+      console.log('[DEBUG] labelId:', c.labelId, 'dueDate:', c.dueDate);
+      console.log('[DEBUG] calendarId:', CALENDAR_MAP[c.labelId]);
+
+      if (c.dueDate && c.labelId && CALENDAR_MAP[c.labelId]) {
         try {
           const calId = CALENDAR_MAP[c.labelId];
+          console.log('[DEBUG] Inserting to calendar:', calId);
           const event = await calendar.events.insert({
             calendarId: calId,
             requestBody: {
@@ -83,9 +82,12 @@ export default async function handler(req, res) {
             },
           });
           calEventId = `${c.labelId}:${event.data.id}`;
+          console.log('[DEBUG] Calendar event created:', calEventId);
         } catch (e) {
-          console.error('Calendar insert error:', e.message);
+          console.error('[DEBUG] Calendar insert error:', e.message);
         }
+      } else {
+        console.log('[DEBUG] Skipping calendar - dueDate:', c.dueDate, 'labelId:', c.labelId, 'calId:', CALENDAR_MAP[c.labelId]);
       }
 
       await sheets.spreadsheets.values.append({
@@ -113,7 +115,7 @@ export default async function handler(req, res) {
       const oldCalEventId = rows[rowIdx][6] || '';
       let calEventId = oldCalEventId;
 
-      // 기존 캘린더 이벤트 삭제 후 재등록
+      // 기존 캘린더 이벤트 삭제
       if (oldCalEventId) {
         try {
           const [oldLabelId, oldEventId] = oldCalEventId.split(':');
@@ -122,13 +124,13 @@ export default async function handler(req, res) {
             await calendar.events.delete({ calendarId: oldCalId, eventId: oldEventId });
           }
         } catch (e) {
-          console.error('Calendar delete error:', e.message);
+          console.error('[DEBUG] Calendar delete error:', e.message);
         }
         calEventId = '';
       }
 
       // 새 캘린더 이벤트 등록
-      if (c.dueDate && CALENDAR_MAP[c.labelId]) {
+      if (c.dueDate && c.labelId && CALENDAR_MAP[c.labelId]) {
         try {
           const calId = CALENDAR_MAP[c.labelId];
           const event = await calendar.events.insert({
@@ -142,7 +144,7 @@ export default async function handler(req, res) {
           });
           calEventId = `${c.labelId}:${event.data.id}`;
         } catch (e) {
-          console.error('Calendar insert error:', e.message);
+          console.error('[DEBUG] Calendar insert error:', e.message);
         }
       }
 
@@ -169,7 +171,6 @@ export default async function handler(req, res) {
       const rowNum = rowIdx + 2;
       const oldCalEventId = rows[rowIdx][6] || '';
 
-      // 캘린더 이벤트 삭제
       if (oldCalEventId) {
         try {
           const [oldLabelId, oldEventId] = oldCalEventId.split(':');
@@ -178,7 +179,7 @@ export default async function handler(req, res) {
             await calendar.events.delete({ calendarId: oldCalId, eventId: oldEventId });
           }
         } catch (e) {
-          console.error('Calendar delete error:', e.message);
+          console.error('[DEBUG] Calendar delete error:', e.message);
         }
       }
 
@@ -190,6 +191,7 @@ export default async function handler(req, res) {
     }
 
   } catch (e) {
+    console.error('[DEBUG] Handler error:', e.message);
     return res.status(500).json({ error: e.message });
   }
 }
