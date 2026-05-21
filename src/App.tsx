@@ -766,27 +766,37 @@ function Board({
     [setPanelState]
   );
 
-  const onDrop = (colId, overCardId) => {
+  const onDrop = async (colId, overCardId) => {
     if (!dragging) return;
-    setCards((prev) => {
-      const final = prev.map((c) => (c.id === dragging ? { ...c, colId } : c));
+    let movedCard = null;
+    setCards(prev => {
+      const final = prev.map(c => {
+        if (c.id === dragging) {
+          movedCard = { ...c, colId };
+          return movedCard;
+        }
+        return c;
+      });
       if (!overCardId || overCardId === dragging) return final;
-      const col = final.filter((c) => c.colId === colId),
-        rest = final.filter((c) => c.colId !== colId);
-      const fi = col.findIndex((c) => c.id === dragging),
-        ti = col.findIndex((c) => c.id === overCardId);
+      const col = final.filter(c => c.colId === colId);
+      const rest = final.filter(c => c.colId !== colId);
+      const fi = col.findIndex(c => c.id === dragging);
+      const ti = col.findIndex(c => c.id === overCardId);
       if (fi === -1 || ti === -1) return final;
       const r = [...col];
       const [m] = r.splice(fi, 1);
       r.splice(ti, 0, m);
       return [...rest, ...r];
     });
-    setDragging(null);
-    setDragOverCol(null);
-    setDragOverCard(null);
+    setDragging(null); setDragOverCol(null); setDragOverCard(null);
+
+    // Sheets에 colId 업데이트
+    if (movedCard) {
+      await apiFetch("PUT", boardDef.id, movedCard);
+    }
   };
 
-  return (
+    return (
     <div style={{ marginBottom: 28 }}>
       <div
         style={{
