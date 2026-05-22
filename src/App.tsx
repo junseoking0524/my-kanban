@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 const FONT = "'Nanum Gothic', 'Apple SD Gothic Neo', sans-serif";
 const iStyle = { width:"100%", fontSize:13, padding:"7px 10px", borderRadius:6, border:"1px solid #EFEFEF", outline:"none", boxSizing:"border-box", fontFamily:FONT, background:"#fff", color:"#333" };
@@ -24,22 +24,18 @@ const PERSONAL_LABELS = ["family","default","noupdate"];
 const getLbl = (id) => CAL_LABELS.find(l=>l.id===id) || CAL_LABELS[2];
 
 const BOARDS_DEF = [
-  {
-    id:"work", title:"업무 칸반보드", titleEn:"WORK BOARD",
+  { id:"work", title:"업무 칸반보드", titleEn:"WORK BOARD",
     cols:[
-      { id:"todo",       ko:"할 일",  en:"TO DO",       ja:"やること" },
-      { id:"inprogress", ko:"진행 중", en:"IN PROGRESS", ja:"進行中" },
-      { id:"done",       ko:"완료",   en:"DONE",        ja:"完了" },
-    ],
-  },
-  {
-    id:"personal", title:"개인 주요사항", titleEn:"PERSONAL",
+      {id:"todo", ko:"할 일", en:"TO DO", ja:"やること"},
+      {id:"inprogress", ko:"진행 중", en:"IN PROGRESS", ja:"進行中"},
+      {id:"done", ko:"완료", en:"DONE", ja:"完了"},
+    ]},
+  { id:"personal", title:"개인 주요사항", titleEn:"PERSONAL",
     cols:[
-      { id:"check", ko:"확인",    en:"CHECK",    ja:"確認" },
-      { id:"carry", ko:"챙길 것", en:"TO BRING", ja:"持ち物" },
-      { id:"done2", ko:"완료",    en:"DONE",     ja:"完了" },
-    ],
-  },
+      {id:"check", ko:"확인", en:"CHECK", ja:"確認"},
+      {id:"carry", ko:"챙길 것", en:"TO BRING", ja:"持ち物"},
+      {id:"done2", ko:"완료", en:"DONE", ja:"完了"},
+    ]},
 ];
 
 function parseDate(raw) {
@@ -62,10 +58,13 @@ async function apiFetch(method, boardId, body, cardId) {
 }
 
 function useIsMobile() {
-  const [v, setV] = useState(window.innerWidth < 768);
-  useEffect(() => { const h=()=>setV(window.innerWidth<768); window.addEventListener('resize',h); return ()=>window.removeEventListener('resize',h); },[]);
+  const [v,setV] = useState(window.innerWidth<768);
+  useEffect(()=>{ const h=()=>setV(window.innerWidth<768); window.addEventListener('resize',h); return ()=>window.removeEventListener('resize',h); },[]);
   return v;
 }
+
+// 전역 드래그 상태 (ref로 관리)
+const gDrag = { cardId:null, boardId:null, card:null };
 
 // ── 날짜 슬라이더 ────────────────────────────────────────────────────
 function DateSlider({ value, onChange }) {
@@ -74,345 +73,323 @@ function DateSlider({ value, onChange }) {
   const pad = n=>String(n).padStart(2,"0");
   const fmt = d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
   const dayNames = ["일","월","화","수","목","금","토"];
-  const sliderRef = useRef(null);
+  const slRef = useRef(null);
   const barRef = useRef(null);
-  const isDragging = useRef(false);
-  const startX = useRef(0);
-  const scrollLeft = useRef(0);
-  const moved = useRef(false);
+  const dg = useRef({on:false,x:0,sl:0,moved:false});
 
-  const updateBar = () => {
-    if (!sliderRef.current || !barRef.current) return;
-    const s = sliderRef.current;
-    const ratio = s.clientWidth / s.scrollWidth;
-    const pct = s.scrollLeft / (s.scrollWidth - s.clientWidth) || 0;
-    barRef.current.style.width = (ratio*100)+"%";
-    barRef.current.style.marginLeft = (pct*(1-ratio)*100)+"%";
-  };
+  useEffect(()=>{
+    const el=slRef.current; if(!el)return;
+    const upd=()=>{ if(!barRef.current)return; const r=el.clientWidth/el.scrollWidth; const p=el.scrollLeft/(el.scrollWidth-el.clientWidth)||0; barRef.current.style.width=(r*100)+"%"; barRef.current.style.marginLeft=(p*(1-r)*100)+"%"; };
+    el.addEventListener('scroll',upd); upd(); return ()=>el.removeEventListener('scroll',upd);
+  },[]);
 
-  useEffect(() => {
-    const s = sliderRef.current;
-    if (!s) return;
-    s.addEventListener('scroll', updateBar);
-    updateBar();
-    return () => s.removeEventListener('scroll', updateBar);
-  }, []);
-
-  const onMD = (e) => { isDragging.current=true; moved.current=false; startX.current=e.pageX-sliderRef.current.offsetLeft; scrollLeft.current=sliderRef.current.scrollLeft; sliderRef.current.style.cursor="grabbing"; };
-  const onMM = (e) => { if(!isDragging.current)return; e.preventDefault(); const x=e.pageX-sliderRef.current.offsetLeft; const walk=(x-startX.current)*1.5; if(Math.abs(walk)>3)moved.current=true; sliderRef.current.scrollLeft=scrollLeft.current-walk; };
-  const onMU = () => { isDragging.current=false; if(sliderRef.current)sliderRef.current.style.cursor="grab"; };
+  const onMD = e=>{ dg.current={on:true,x:e.pageX-slRef.current.offsetLeft,sl:slRef.current.scrollLeft,moved:false}; slRef.current.style.cursor="grabbing"; };
+  const onMM = e=>{ if(!dg.current.on)return; e.preventDefault(); const w=(e.pageX-slRef.current.offsetLeft-dg.current.x)*1.5; if(Math.abs(w)>3)dg.current.moved=true; slRef.current.scrollLeft=dg.current.sl-w; };
+  const onMU = ()=>{ dg.current.on=false; if(slRef.current)slRef.current.style.cursor="grab"; };
 
   return (
     <div>
-      <div ref={sliderRef} onMouseDown={onMD} onMouseMove={onMM} onMouseUp={onMU} onMouseLeave={onMU}
+      <div ref={slRef} onMouseDown={onMD} onMouseMove={onMM} onMouseUp={onMU} onMouseLeave={onMU}
         style={{ overflowX:"scroll", WebkitOverflowScrolling:"touch", cursor:"grab", userSelect:"none" }}>
         <div style={{ display:"flex", gap:6, padding:"4px 2px 6px", width:"max-content" }}>
-          {days.map((d,i) => {
-            const str=fmt(d), isSelected=value===str, isToday=i===0, dow=d.getDay(), isSun=dow===0, isSat=dow===6;
+          {days.map((d,i)=>{
+            const str=fmt(d),isSel=value===str,isT=i===0,dow=d.getDay();
             return (
-              <div key={str} onClick={()=>{ if(!moved.current) onChange(isSelected?"":str); }}
-                style={{ width:40, height:52, borderRadius:10, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:2, cursor:"grab", flexShrink:0,
-                  background:isSelected?"#111":isToday?"#F5F5F5":"#fff",
-                  border:isSelected?"none":isToday?"1px solid #DDD":"1px solid #EFEFEF" }}>
-                <span style={{ fontSize:9, fontWeight:600, color:isSelected?"rgba(255,255,255,0.6)":isSun?"#E74C3C":isSat?"#2980B9":"#BBB" }}>{dayNames[dow]}</span>
-                <span style={{ fontSize:15, fontWeight:700, lineHeight:1, color:isSelected?"#fff":isToday?"#111":isSun?"#E74C3C":isSat?"#2980B9":"#333" }}>{d.getDate()}</span>
-                {isToday&&!isSelected&&<span style={{ width:4, height:4, borderRadius:"50%", background:"#111" }}/>}
+              <div key={str} onClick={()=>{ if(!dg.current.moved) onChange(isSel?"":str); }}
+                style={{ width:40,height:52,borderRadius:10,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2,cursor:"grab",flexShrink:0,
+                  background:isSel?"#111":isT?"#F5F5F5":"#fff", border:isSel?"none":isT?"1px solid #DDD":"1px solid #EFEFEF" }}>
+                <span style={{ fontSize:9,fontWeight:600,color:isSel?"rgba(255,255,255,0.6)":dow===0?"#E74C3C":dow===6?"#2980B9":"#BBB" }}>{dayNames[dow]}</span>
+                <span style={{ fontSize:15,fontWeight:700,lineHeight:1,color:isSel?"#fff":isT?"#111":dow===0?"#E74C3C":dow===6?"#2980B9":"#333" }}>{d.getDate()}</span>
+                {isT&&!isSel&&<span style={{ width:4,height:4,borderRadius:"50%",background:"#111" }}/>}
               </div>
             );
           })}
         </div>
       </div>
-      <div style={{ height:3, borderRadius:2, background:"#F0F0F0", marginBottom:6, overflow:"hidden" }}>
-        <div ref={barRef} style={{ height:"100%", borderRadius:2, background:"#CCC", transition:"margin-left 0.05s" }}/>
+      <div style={{ height:3,borderRadius:2,background:"#F0F0F0",marginBottom:6,overflow:"hidden" }}>
+        <div ref={barRef} style={{ height:"100%",borderRadius:2,background:"#CCC" }}/>
       </div>
-      <input value={value||""} onChange={e=>onChange(e.target.value)} onBlur={e=>{const p=parseDate(e.target.value);onChange(p);}}
-        placeholder="직접 입력 (예) 0530 / 5/30" style={{ ...iStyle, fontSize:12 }}/>
-      {value&&<div style={{ fontSize:11, color:"#888", marginTop:4, display:"flex", justifyContent:"space-between" }}>
+      <input value={value||""} onChange={e=>onChange(e.target.value)} onBlur={e=>onChange(parseDate(e.target.value))}
+        placeholder="직접 입력 (예) 0530 / 5/30" style={{ ...iStyle,fontSize:12 }}/>
+      {value&&<div style={{ fontSize:11,color:"#888",marginTop:4,display:"flex",justifyContent:"space-between" }}>
         <span>선택: {value}</span>
-        <button onClick={()=>onChange("")} style={{ background:"none", border:"none", fontSize:11, color:"#CCC", cursor:"pointer", padding:0 }}>지우기</button>
+        <button onClick={()=>onChange("")} style={{ background:"none",border:"none",fontSize:11,color:"#CCC",cursor:"pointer",padding:0 }}>지우기</button>
       </div>}
     </div>
   );
 }
 
-// ── 패널 ────────────────────────────────────────────────────────────
+// ── 패널 ─────────────────────────────────────────────────────────────
 function SidePanel({ form, setForm, cols, mode, onSave, onDelete, onClose, isMobile }) {
   const lbl = getLbl(form.labelId);
   return (
-    <div style={ isMobile
-      ? { position:"fixed", left:0, right:0, bottom:0, maxHeight:"90vh", background:"#fff", borderTop:"1px solid #E0E0E0", borderRadius:"16px 16px 0 0", boxShadow:"0 -4px 24px rgba(0,0,0,0.12)", zIndex:500, display:"flex", flexDirection:"column" }
-      : { position:"fixed", top:0, right:0, bottom:0, width:292, background:"#fff", borderLeft:"1px solid #EBEBEB", boxShadow:"-6px 0 24px rgba(0,0,0,0.07)", zIndex:500, display:"flex", flexDirection:"column" }
-    }>
-      {isMobile&&<div style={{ width:40, height:4, borderRadius:2, background:"#E0E0E0", margin:"12px auto 0" }}/>}
-      <div style={{ padding:"13px 16px 12px", borderBottom:"1px solid #F2F2F2", display:"flex", alignItems:"center", gap:8 }}>
-        <div style={{ width:8, height:8, borderRadius:"50%", background:lbl.color }}/>
-        <span style={{ fontSize:12, fontWeight:700, color:"#111", flex:1 }}>{mode==="add"?"새 카드 추가":"카드 편집"}</span>
-        <button onClick={onClose} style={{ background:"none", border:"none", fontSize:18, color:"#CCC", cursor:"pointer", padding:0 }}>✕</button>
+    <div style={isMobile
+      ? { position:"fixed",left:0,right:0,bottom:0,maxHeight:"90vh",background:"#fff",borderTop:"1px solid #E0E0E0",borderRadius:"16px 16px 0 0",boxShadow:"0 -4px 24px rgba(0,0,0,0.12)",zIndex:500,display:"flex",flexDirection:"column" }
+      : { position:"fixed",top:0,right:0,bottom:0,width:292,background:"#fff",borderLeft:"1px solid #EBEBEB",boxShadow:"-6px 0 24px rgba(0,0,0,0.07)",zIndex:500,display:"flex",flexDirection:"column" }}>
+      {isMobile&&<div style={{ width:40,height:4,borderRadius:2,background:"#E0E0E0",margin:"12px auto 0" }}/>}
+      <div style={{ padding:"13px 16px 12px",borderBottom:"1px solid #F2F2F2",display:"flex",alignItems:"center",gap:8 }}>
+        <div style={{ width:8,height:8,borderRadius:"50%",background:lbl.color }}/>
+        <span style={{ fontSize:12,fontWeight:700,color:"#111",flex:1 }}>{mode==="add"?"새 카드 추가":"카드 편집"}</span>
+        <button onClick={onClose} style={{ background:"none",border:"none",fontSize:18,color:"#CCC",cursor:"pointer",padding:0 }}>✕</button>
       </div>
-      <div style={{ flex:1, overflowY:"auto", padding:"14px 16px", display:"flex", flexDirection:"column", gap:12 }}>
-        <div>
-          <label style={lStyle}>캘린더 분류</label>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
+      <div style={{ flex:1,overflowY:"auto",padding:"14px 16px",display:"flex",flexDirection:"column",gap:12 }}>
+        <div><label style={lStyle}>캘린더 분류</label>
+          <div style={{ display:"flex",flexWrap:"wrap",gap:5 }}>
             {CAL_LABELS.map(l=>(
               <button key={l.id} onClick={()=>setForm(f=>({...f,labelId:l.id}))}
-                style={{ fontSize:isMobile?12:10, padding:isMobile?"6px 12px":"3px 9px", borderRadius:16, cursor:"pointer", fontFamily:FONT, fontWeight:700,
-                  background:form.labelId===l.id?l.color:"#F5F5F5", color:form.labelId===l.id?l.text:"#999",
+                style={{ fontSize:isMobile?12:10,padding:isMobile?"6px 12px":"3px 9px",borderRadius:16,cursor:"pointer",fontFamily:FONT,fontWeight:700,
+                  background:form.labelId===l.id?l.color:"#F5F5F5",color:form.labelId===l.id?l.text:"#999",
                   border:form.labelId===l.id?`1.5px solid ${l.color}`:"1.5px solid transparent" }}>{l.ko}</button>
             ))}
           </div>
         </div>
-        <div>
-          <label style={lStyle}>상태</label>
-          <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+        <div><label style={lStyle}>상태</label>
+          <div style={{ display:"flex",gap:5,flexWrap:"wrap" }}>
             {cols.map(c=>(
               <button key={c.id} onClick={()=>setForm(f=>({...f,colId:c.id}))}
-                style={{ fontSize:isMobile?12:11, padding:isMobile?"6px 14px":"4px 11px", borderRadius:5, cursor:"pointer", fontFamily:FONT,
-                  background:form.colId===c.id?"#111":"#F5F5F5", color:form.colId===c.id?"#fff":"#888", border:"none", fontWeight:form.colId===c.id?700:400 }}>{c.ko}</button>
+                style={{ fontSize:isMobile?12:11,padding:isMobile?"6px 14px":"4px 11px",borderRadius:5,cursor:"pointer",fontFamily:FONT,
+                  background:form.colId===c.id?"#111":"#F5F5F5",color:form.colId===c.id?"#fff":"#888",border:"none",fontWeight:form.colId===c.id?700:400 }}>{c.ko}</button>
             ))}
           </div>
         </div>
-        <div>
-          <label style={lStyle}>제목</label>
-          <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="카드 제목" autoFocus style={{ ...iStyle, fontSize:isMobile?15:13 }}/>
+        <div><label style={lStyle}>제목</label>
+          <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="카드 제목" autoFocus style={{ ...iStyle,fontSize:isMobile?15:13 }}/>
         </div>
-        <div>
-          <label style={lStyle}>메모</label>
-          <textarea value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))} placeholder="메모 (선택)" rows={3} style={{ ...iStyle, resize:"vertical", lineHeight:1.55, fontSize:isMobile?14:13 }}/>
+        <div><label style={lStyle}>메모</label>
+          <textarea value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))} placeholder="메모 (선택)" rows={3} style={{ ...iStyle,resize:"vertical",lineHeight:1.55,fontSize:isMobile?14:13 }}/>
         </div>
-        <div>
-          <label style={lStyle}>마감일</label>
+        <div><label style={lStyle}>마감일</label>
           <DateSlider value={form.dueDate} onChange={v=>setForm(f=>({...f,dueDate:v}))}/>
         </div>
       </div>
-      <div style={{ padding:"11px 16px", borderTop:"1px solid #F2F2F2", display:"flex", gap:7, paddingBottom:isMobile?"24px":"11px" }}>
-        <button onClick={onSave} style={{ flex:1, padding:isMobile?"12px 0":"8px 0", borderRadius:8, border:"none", background:"#111", color:"#fff", fontWeight:700, fontSize:isMobile?15:13, cursor:"pointer", fontFamily:FONT }}>저장</button>
-        <button onClick={onClose} style={{ padding:isMobile?"12px 16px":"8px 12px", borderRadius:8, border:"1px solid #EFEFEF", background:"#fff", color:"#AAA", fontSize:isMobile?14:13, cursor:"pointer", fontFamily:FONT }}>취소</button>
-        {mode==="edit"&&<button onClick={onDelete} style={{ padding:isMobile?"12px 16px":"8px 14px", borderRadius:8, border:"none", background:"#FFF0EE", color:"#D04040", fontSize:isMobile?13:12, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>삭제</button>}
+      <div style={{ padding:"11px 16px",borderTop:"1px solid #F2F2F2",display:"flex",gap:7,paddingBottom:isMobile?"24px":"11px" }}>
+        <button onClick={onSave} style={{ flex:1,padding:isMobile?"12px 0":"8px 0",borderRadius:8,border:"none",background:"#111",color:"#fff",fontWeight:700,fontSize:isMobile?15:13,cursor:"pointer",fontFamily:FONT }}>저장</button>
+        <button onClick={onClose} style={{ padding:isMobile?"12px 16px":"8px 12px",borderRadius:8,border:"1px solid #EFEFEF",background:"#fff",color:"#AAA",fontSize:isMobile?14:13,cursor:"pointer",fontFamily:FONT }}>취소</button>
+        {mode==="edit"&&<button onClick={onDelete} style={{ padding:isMobile?"12px 16px":"8px 14px",borderRadius:8,border:"none",background:"#FFF0EE",color:"#D04040",fontSize:isMobile?13:12,fontWeight:700,cursor:"pointer",fontFamily:FONT }}>삭제</button>}
       </div>
     </div>
   );
 }
 
 // ── 미니 캘린더 ──────────────────────────────────────────────────────
-function MiniCalendar({ allCards, onDateClick, isMobile }) {
-  const today = new Date();
-  const [vy,setVy] = useState(today.getFullYear());
-  const [vm,setVm] = useState(today.getMonth());
-  const fd = new Date(vy,vm,1).getDay();
-  const dim = new Date(vy,vm+1,0).getDate();
-  const weeks=[]; let day=1-fd;
+function MiniCalendar({ allCards, onDateClick }) {
+  const today=new Date();
+  const [vy,setVy]=useState(today.getFullYear());
+  const [vm,setVm]=useState(today.getMonth());
+  const fd=new Date(vy,vm,1).getDay(),dim=new Date(vy,vm+1,0).getDate();
+  const weeks=[];let day=1-fd;
   for(let w=0;w<6;w++){const wk=[];for(let d=0;d<7;d++,day++)wk.push(day);weeks.push(wk);if(day>dim)break;}
-  const cbd={};
-  allCards.forEach(c=>{if(c.dueDate){if(!cbd[c.dueDate])cbd[c.dueDate]=[];cbd[c.dueDate].push(c);}});
+  const cbd={};allCards.forEach(c=>{if(c.dueDate){if(!cbd[c.dueDate])cbd[c.dueDate]=[];cbd[c.dueDate].push(c);}});
   const pad=n=>String(n).padStart(2,"0");
   const mn=["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
   const dn=["일","월","화","수","목","금","토"];
   return (
-    <div style={{ background:"#fff", border:"1px solid #EFEFEF", borderRadius:10, padding:"14px 14px 12px", fontFamily:FONT }}>
-      <div style={{ display:"flex", alignItems:"center", marginBottom:12 }}>
-        <button onClick={()=>{if(vm===0){setVm(11);setVy(y=>y-1);}else setVm(m=>m-1);}} style={{ background:"none", border:"none", cursor:"pointer", color:"#AAA", fontSize:16, padding:"0 8px" }}>‹</button>
-        <span style={{ flex:1, textAlign:"center", fontSize:13, fontWeight:700, color:"#111" }}>{vy}년 {mn[vm]}</span>
-        <button onClick={()=>{if(vm===11){setVm(0);setVy(y=>y+1);}else setVm(m=>m+1);}} style={{ background:"none", border:"none", cursor:"pointer", color:"#AAA", fontSize:16, padding:"0 8px" }}>›</button>
+    <div style={{ background:"#fff",border:"1px solid #EFEFEF",borderRadius:10,padding:"14px 14px 12px",fontFamily:FONT }}>
+      <div style={{ display:"flex",alignItems:"center",marginBottom:12 }}>
+        <button onClick={()=>{if(vm===0){setVm(11);setVy(y=>y-1);}else setVm(m=>m-1);}} style={{ background:"none",border:"none",cursor:"pointer",color:"#AAA",fontSize:16,padding:"0 8px" }}>‹</button>
+        <span style={{ flex:1,textAlign:"center",fontSize:13,fontWeight:700,color:"#111" }}>{vy}년 {mn[vm]}</span>
+        <button onClick={()=>{if(vm===11){setVm(0);setVy(y=>y+1);}else setVm(m=>m+1);}} style={{ background:"none",border:"none",cursor:"pointer",color:"#AAA",fontSize:16,padding:"0 8px" }}>›</button>
       </div>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", marginBottom:4 }}>
-        {dn.map((d,i)=><div key={d} style={{ textAlign:"center", fontSize:10, fontWeight:700, color:i===0?"#E74C3C":i===6?"#2980B9":"#BBB", padding:"2px 0" }}>{d}</div>)}
+      <div style={{ display:"grid",gridTemplateColumns:"repeat(7,1fr)",marginBottom:4 }}>
+        {dn.map((d,i)=><div key={d} style={{ textAlign:"center",fontSize:10,fontWeight:700,color:i===0?"#E74C3C":i===6?"#2980B9":"#BBB",padding:"2px 0" }}>{d}</div>)}
       </div>
       {weeks.map((week,wi)=>(
-        <div key={wi} style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", marginBottom:2 }}>
+        <div key={wi} style={{ display:"grid",gridTemplateColumns:"repeat(7,1fr)",marginBottom:2 }}>
           {week.map((d,di)=>{
-            if(d<1||d>dim) return <div key={di}/>;
-            const ds=`${vy}-${pad(vm+1)}-${pad(d)}`;
-            const dots=cbd[ds]||[];
-            const isT=d===today.getDate()&&vm===today.getMonth()&&vy===today.getFullYear();
+            if(d<1||d>dim)return <div key={di}/>;
+            const ds=`${vy}-${pad(vm+1)}-${pad(d)}`,dots=cbd[ds]||[],isT=d===today.getDate()&&vm===today.getMonth()&&vy===today.getFullYear();
             return (
-              <div key={di} onClick={()=>onDateClick(ds)} style={{ textAlign:"center", padding:"3px 1px", cursor:"pointer", borderRadius:6 }}
+              <div key={di} onClick={()=>onDateClick(ds)} style={{ textAlign:"center",padding:"3px 1px",cursor:"pointer",borderRadius:6 }}
                 onMouseEnter={e=>e.currentTarget.style.background="#F5F5F5"}
                 onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                <span style={{ fontSize:12, fontWeight:isT?700:400, color:isT?"#fff":di===0?"#E74C3C":di===6?"#2980B9":"#333", background:isT?"#111":"transparent", borderRadius:"50%", width:22, height:22, display:"inline-flex", alignItems:"center", justifyContent:"center" }}>{d}</span>
-                {dots.length>0&&<div style={{ display:"flex", justifyContent:"center", gap:2, marginTop:1 }}>{dots.slice(0,3).map((c,i)=><div key={i} style={{ width:5, height:5, borderRadius:"50%", background:getLbl(c.labelId).color }}/>)}</div>}
+                <span style={{ fontSize:12,fontWeight:isT?700:400,color:isT?"#fff":di===0?"#E74C3C":di===6?"#2980B9":"#333",background:isT?"#111":"transparent",borderRadius:"50%",width:22,height:22,display:"inline-flex",alignItems:"center",justifyContent:"center" }}>{d}</span>
+                {dots.length>0&&<div style={{ display:"flex",justifyContent:"center",gap:2,marginTop:1 }}>{dots.slice(0,3).map((c,i)=><div key={i} style={{ width:5,height:5,borderRadius:"50%",background:getLbl(c.labelId).color }}/>)}</div>}
               </div>
             );
           })}
         </div>
       ))}
-      <div style={{ borderTop:"1px solid #F5F5F5", marginTop:10, paddingTop:8, display:"flex", flexWrap:"wrap", gap:"6px 10px" }}>
-        {CAL_LABELS.map(l=><div key={l.id} style={{ display:"flex", alignItems:"center", gap:4 }}><div style={{ width:6, height:6, borderRadius:"50%", background:l.color }}/><span style={{ fontSize:10, color:"#AAA" }}>{l.ko}</span></div>)}
+      <div style={{ borderTop:"1px solid #F5F5F5",marginTop:10,paddingTop:8,display:"flex",flexWrap:"wrap",gap:"6px 10px" }}>
+        {CAL_LABELS.map(l=><div key={l.id} style={{ display:"flex",alignItems:"center",gap:4 }}><div style={{ width:6,height:6,borderRadius:"50%",background:l.color }}/><span style={{ fontSize:10,color:"#AAA" }}>{l.ko}</span></div>)}
       </div>
     </div>
   );
 }
 
-// ── 휴지통 ──────────────────────────────────────────────────────────
-function TrashZone({ dragging, onDrop }) {
-  const [over, setOver] = useState(false);
-  return (
-    <div onDragOver={e=>{e.preventDefault();setOver(true);}} onDragLeave={()=>setOver(false)} onDrop={e=>{e.preventDefault();setOver(false);onDrop();}}
-      style={{ position:"fixed", bottom:0, left:0, width:220, height:over?130:90, borderTop:`2px dashed ${over?"#D04040":dragging?"#CCC":"#E0E0E0"}`, borderRight:`2px dashed ${over?"#D04040":dragging?"#CCC":"#E0E0E0"}`, borderRadius:"0 12px 0 0", background:over?"#FFF0EE":dragging?"#F7F7F7":"#FAFAFA", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:6, transition:"all 0.18s", opacity:dragging?1:0.3, zIndex:600, pointerEvents:dragging?"auto":"none" }}>
-      <span style={{ fontSize:24, color:over?"#D04040":"#CCC" }}>🗑</span>
-      <span style={{ fontSize:11, color:over?"#D04040":"#BBB", fontFamily:FONT, fontWeight:over?700:400, textAlign:"center" }}>{over?"놓으면 삭제됩니다":"드래그하여 삭제"}</span>
-    </div>
-  );
-}
-
-// ── 보드 ────────────────────────────────────────────────────────────
-function Board({ boardDef, panelState, setPanelState, hidePersonal, allCardsRef, globalDragging, setGlobalDragging, onTrashDrop, isMobile }) {
+// ── 보드 ─────────────────────────────────────────────────────────────
+function Board({ boardDef, panelState, setPanelState, hidePersonal, allCardsRef, isMobile }) {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dragOverCol, setDragOverCol] = useState(null);
-  const [dragOverCard, setDragOverCard] = useState(null);
-  const draggingRef = useRef(null);
+  const [tick, setTick] = useState(0); // 강제 리렌더
   const [activeTab, setActiveTab] = useState(boardDef.cols[0].id);
+  const cloneRef = useRef(null);
 
   useEffect(()=>{
-    apiFetch("GET",boardDef.id).then(data=>{setCards(Array.isArray(data)?data:[]);setLoading(false);}).catch(()=>setLoading(false));
+    apiFetch("GET",boardDef.id).then(d=>{setCards(Array.isArray(d)?d:[]);setLoading(false);}).catch(()=>setLoading(false));
   },[boardDef.id]);
 
-  allCardsRef[boardDef.id] = cards;
-  onTrashDrop[boardDef.id] = async(cardId)=>{ setCards(p=>p.filter(c=>c.id!==cardId)); if(panelState?.form?.id===cardId)setPanelState(null); await apiFetch("DELETE",boardDef.id,null,cardId); };
+  allCardsRef[boardDef.id] = { cards, setCards };
 
-  const byCol = (colId)=>{ let f=cards.filter(c=>c.colId===colId); if(hidePersonal&&boardDef.id==="work")f=f.filter(c=>!PERSONAL_LABELS.includes(c.labelId)); return f; };
+  const byCol = (colId) => {
+    let f = cards.filter(c=>c.colId===colId);
+    if (hidePersonal&&boardDef.id==="work") f=f.filter(c=>!PERSONAL_LABELS.includes(c.labelId));
+    return f;
+  };
+
   const isMyPanel = panelState?.boardId===boardDef.id;
-  const openAdd  = (colId)=>setPanelState({boardId:boardDef.id,mode:"add", form:{colId,title:"",note:"",dueDate:"",labelId:"default"}});
-  const openEdit = (card) =>setPanelState({boardId:boardDef.id,mode:"edit",form:{...card}});
+  const openAdd = (colId) => setPanelState({boardId:boardDef.id,mode:"add",form:{colId,title:"",note:"",dueDate:"",labelId:"default"}});
+  const openEdit = (card) => setPanelState({boardId:boardDef.id,mode:"edit",form:{...card}});
 
-  const handleSave = async()=>{
-    if(!panelState?.form?.title?.trim())return;
-    const f={...panelState.form,dueDate:parseDate(panelState.form.dueDate)};
-    if(panelState.mode==="add"){const nc={id:"c"+Date.now(),...f};setCards(p=>[...p,nc]);await apiFetch("POST",boardDef.id,nc);}
-    else{setCards(p=>p.map(c=>c.id===f.id?{...c,...f}:c));await apiFetch("PUT",boardDef.id,f);}
+  const handleSave = async () => {
+    if (!panelState?.form?.title?.trim()) return;
+    const f = {...panelState.form, dueDate:parseDate(panelState.form.dueDate)};
+    if (panelState.mode==="add") { const nc={id:"c"+Date.now(),...f}; setCards(p=>[...p,nc]); await apiFetch("POST",boardDef.id,nc); }
+    else { setCards(p=>p.map(c=>c.id===f.id?{...c,...f}:c)); await apiFetch("PUT",boardDef.id,f); }
     setPanelState(null);
   };
-  const handleDelete = async()=>{ const id=panelState.form.id; setCards(p=>p.filter(c=>c.id!==id)); setPanelState(null); await apiFetch("DELETE",boardDef.id,null,id); };
-  const delCard = async(id)=>{ setCards(p=>p.filter(c=>c.id!==id)); if(panelState?.form?.id===id)setPanelState(null); await apiFetch("DELETE",boardDef.id,null,id); };
+  const handleDelete = async () => { const id=panelState.form.id; setCards(p=>p.filter(c=>c.id!==id)); setPanelState(null); await apiFetch("DELETE",boardDef.id,null,id); };
+  const delCard = async (id) => { setCards(p=>p.filter(c=>c.id!==id)); if(panelState?.form?.id===id)setPanelState(null); await apiFetch("DELETE",boardDef.id,null,id); };
   const setForm = useCallback((u)=>setPanelState(p=>p?{...p,form:typeof u==="function"?u(p.form):u}:p),[setPanelState]);
 
-  const onDragStart = (e, card) => {
-    draggingRef.current = card;
-    setGlobalDragging({cardId:card.id, boardId:boardDef.id});
-    e.dataTransfer.effectAllowed = "move";
-  };
-  const onDragEnd = () => { draggingRef.current=null; setDragOverCol(null); setDragOverCard(null); setGlobalDragging(null); };
-
-  const onDropCol = async(e, colId) => {
-    e.preventDefault();
-    const card = draggingRef.current;
-    if (!card) return;
-    setDragOverCol(null); setDragOverCard(null);
-    const moved = {...card, colId};
-    setCards(p=>p.map(c=>c.id===card.id?moved:c));
-    draggingRef.current = null;
-    setGlobalDragging(null);
-    await apiFetch("PUT", boardDef.id, moved);
-  };
-
-  const onDropCard = async(e, colId, overCardId) => {
+  // 드롭 처리
+  const handleDrop = async (e, colId) => {
     e.preventDefault(); e.stopPropagation();
-    const card = draggingRef.current;
-    if (!card || card.id === overCardId) return;
-    setDragOverCol(null); setDragOverCard(null);
-    let movedCard = {...card, colId};
-    setCards(prev => {
-      const updated = prev.map(c=>c.id===card.id?movedCard:c);
-      const col = updated.filter(c=>c.colId===colId);
-      const rest = updated.filter(c=>c.colId!==colId);
-      const fi = col.findIndex(c=>c.id===card.id);
-      const ti = col.findIndex(c=>c.id===overCardId);
-      if (fi===-1||ti===-1) return updated;
-      const r=[...col]; const[m]=r.splice(fi,1); r.splice(ti,0,m);
-      return [...rest,...r];
-    });
-    draggingRef.current = null;
-    setGlobalDragging(null);
-    await apiFetch("PUT", boardDef.id, movedCard);
+    setDragOverCol(null);
+    if (!gDrag.card) return;
+    const updatedCard = {...gDrag.card, colId};
+    const fromBoardId = gDrag.boardId;
+    gDrag.cardId=null; gDrag.boardId=null; gDrag.card=null;
+    setTick(t=>t+1);
+    // 같은 보드면 로컬 업데이트, 다른 보드면 리로드
+    if (fromBoardId===boardDef.id) {
+      setCards(p=>p.map(c=>c.id===updatedCard.id?updatedCard:c));
+    } else {
+      setCards(p=>[...p, updatedCard]);
+    }
+    await apiFetch("PUT", fromBoardId, updatedCard);
   };
 
-  const CardItem = ({card, mobile}) => {
+  // 터치 드래그
+  const onTouchStart = (e, card) => {
+    gDrag.cardId=card.id; gDrag.boardId=boardDef.id; gDrag.card=card;
+    const t=e.touches[0];
+    const el=e.currentTarget;
+    const c=el.cloneNode(true);
+    c.style.cssText=`position:fixed;opacity:0.75;pointer-events:none;z-index:9999;width:${el.offsetWidth}px;left:${t.clientX-el.offsetWidth/2}px;top:${t.clientY-30}px;border-radius:8px;`;
+    document.body.appendChild(c);
+    cloneRef.current=c;
+    setTick(t=>t+1);
+  };
+  const onTouchMove = (e) => {
+    e.preventDefault();
+    const t=e.touches[0];
+    if (cloneRef.current) { cloneRef.current.style.left=(t.clientX-parseInt(cloneRef.current.style.width)/2)+"px"; cloneRef.current.style.top=(t.clientY-30)+"px"; }
+    const el=document.elementFromPoint(t.clientX,t.clientY);
+    const colEl=el?.closest("[data-colid]");
+    setDragOverCol(colEl?.dataset?.colid||null);
+  };
+  const onTouchEnd = async (e) => {
+    if (cloneRef.current) { cloneRef.current.remove(); cloneRef.current=null; }
+    const t=e.changedTouches[0];
+    const el=document.elementFromPoint(t.clientX,t.clientY);
+    const colEl=el?.closest("[data-colid]");
+    const targetBoardId=el?.closest("[data-boardid]")?.dataset?.boardid;
+    setDragOverCol(null);
+    if (colEl && gDrag.card) {
+      const colId=colEl.dataset.colid;
+      const updatedCard={...gDrag.card,colId};
+      const fromBoardId=gDrag.boardId;
+      gDrag.cardId=null; gDrag.boardId=null; gDrag.card=null;
+      if (fromBoardId===boardDef.id) setCards(p=>p.map(c=>c.id===updatedCard.id?updatedCard:c));
+      else if (targetBoardId===boardDef.id) setCards(p=>[...p,updatedCard]);
+      await apiFetch("PUT",fromBoardId,updatedCard);
+    } else {
+      gDrag.cardId=null; gDrag.boardId=null; gDrag.card=null;
+    }
+    setTick(t=>t+1);
+  };
+
+  const renderCard = (card) => {
     const lbl = getLbl(card.labelId);
-    const isDraggingThis = globalDragging?.cardId === card.id;
+    const isDragging = gDrag.cardId===card.id;
     return (
-      <div
-        draggable={!mobile}
-        onDragStart={mobile?undefined:(e)=>onDragStart(e,card)}
-        onDragEnd={mobile?undefined:onDragEnd}
-        onDragOver={mobile?undefined:(e)=>{e.preventDefault();e.stopPropagation();setDragOverCard(card.id);}}
-        onDrop={mobile?undefined:(e)=>onDropCard(e,card.colId,card.id)}
-        onClick={e=>{if(e.target.closest('button'))return;openEdit(card);}}
-        style={{ background:"#fff", borderLeft:`3px solid ${lbl.color}`,
-          border:`1px solid ${dragOverCard===card.id&&!isDraggingThis?"#579DFF":"#E8E8E8"}`,
-          borderLeft:`3px solid ${lbl.color}`,
-          borderRadius:8, padding:mobile?"12px 14px":"6px 8px", marginBottom:mobile?8:5,
-          cursor:mobile?"pointer":"grab", opacity:isDraggingThis?0.35:1, position:"relative",
-          boxShadow:"0 1px 3px rgba(0,0,0,0.04)" }}
-        onMouseEnter={e=>!mobile&&(e.currentTarget.style.boxShadow="0 2px 8px rgba(0,0,0,0.1)")}
-        onMouseLeave={e=>!mobile&&(e.currentTarget.style.boxShadow="0 1px 3px rgba(0,0,0,0.04)")}>
+      <div key={card.id}
+        draggable
+        onDragStart={e=>{ e.dataTransfer.effectAllowed="move"; gDrag.cardId=card.id; gDrag.boardId=boardDef.id; gDrag.card=card; setTick(t=>t+1); }}
+        onDragEnd={()=>{ gDrag.cardId=null; gDrag.boardId=null; gDrag.card=null; setDragOverCol(null); setTick(t=>t+1); }}
+        onTouchStart={e=>onTouchStart(e,card)}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onClick={e=>{ if(e.target.closest('button'))return; openEdit(card); }}
+        style={{ background:"#fff", borderLeft:`3px solid ${lbl.color}`, border:`1px solid #E8E8E8`, borderLeft:`3px solid ${lbl.color}`,
+          borderRadius:8, padding:"8px 10px", marginBottom:6, cursor:"grab", opacity:isDragging?0.4:1,
+          position:"relative", boxShadow:"0 1px 3px rgba(0,0,0,0.05)", touchAction:"none", userSelect:"none" }}
+        onMouseEnter={e=>e.currentTarget.style.boxShadow="0 2px 8px rgba(0,0,0,0.1)"}
+        onMouseLeave={e=>e.currentTarget.style.boxShadow="0 1px 3px rgba(0,0,0,0.05)"}>
         <button onMouseDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();delCard(card.id);}}
-          style={{ position:"absolute", top:mobile?10:5, right:mobile?10:5, background:"none", border:"none", padding:"1px 4px", cursor:"pointer", fontSize:mobile?14:11, color:"#D8D8D8" }}
+          style={{ position:"absolute",top:6,right:6,background:"none",border:"none",padding:"1px 4px",cursor:"pointer",fontSize:11,color:"#D8D8D8",lineHeight:1 }}
           onMouseEnter={e=>e.currentTarget.style.color="#D04040"}
           onMouseLeave={e=>e.currentTarget.style.color="#D8D8D8"}>✕</button>
-        <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:3 }}>
-          <span style={{ fontSize:9, padding:"1px 6px", borderRadius:8, background:lbl.color, color:lbl.text, fontWeight:700 }}>{lbl.ko}</span>
+        <div style={{ display:"flex",alignItems:"center",gap:5,marginBottom:4 }}>
+          <span style={{ fontSize:9,padding:"1px 6px",borderRadius:8,background:lbl.color,color:lbl.text,fontWeight:700 }}>{lbl.ko}</span>
         </div>
-        <p style={{ margin:"0 0 2px", fontSize:mobile?14:12, fontWeight:600, color:"#1A1A1A", lineHeight:1.4, paddingRight:20 }}>{card.title}</p>
-        {card.note&&<p style={{ margin:0, fontSize:mobile?12:10, color:"#AAA", lineHeight:1.3 }}>{card.note}</p>}
-        {card.dueDate&&<span style={{ fontSize:10, color:"#BABABA", display:"flex", alignItems:"center", gap:3, marginTop:3 }}>⏰ {card.dueDate}</span>}
+        <p style={{ margin:"0 0 2px",fontSize:12,fontWeight:600,color:"#1A1A1A",lineHeight:1.4,paddingRight:20 }}>{card.title}</p>
+        {card.note&&<p style={{ margin:0,fontSize:10,color:"#AAA",lineHeight:1.3 }}>{card.note}</p>}
+        {card.dueDate&&<span style={{ fontSize:10,color:"#BABABA",display:"flex",alignItems:"center",gap:3,marginTop:3 }}>⏰ {card.dueDate}</span>}
       </div>
     );
   };
 
   return (
-    <div style={{ marginBottom:28 }}>
-      <div style={{ display:"flex", alignItems:"baseline", gap:12, marginBottom:12, borderBottom:"1px solid #EBEBEB", paddingBottom:8 }}>
-        <span style={{ fontSize:isMobile?15:14, fontWeight:700, color:"#111" }}>{boardDef.title}</span>
-        <span style={{ fontSize:10, fontWeight:600, color:"#BBB", letterSpacing:2 }}>{boardDef.titleEn}</span>
+    <div data-boardid={boardDef.id} style={{ marginBottom:28 }}>
+      <div style={{ display:"flex",alignItems:"baseline",gap:12,marginBottom:12,borderBottom:"1px solid #EBEBEB",paddingBottom:8 }}>
+        <span style={{ fontSize:14,fontWeight:700,color:"#111" }}>{boardDef.title}</span>
+        <span style={{ fontSize:10,fontWeight:600,color:"#BBB",letterSpacing:2 }}>{boardDef.titleEn}</span>
       </div>
 
-      {loading ? <div style={{ fontSize:12, color:"#CCC", padding:"20px 0", textAlign:"center" }}>불러오는 중...</div>
+      {loading ? <div style={{ fontSize:12,color:"#CCC",padding:"20px 0",textAlign:"center" }}>불러오는 중...</div>
       : isMobile ? (
         <div>
-          <div style={{ display:"flex", borderBottom:"1px solid #EBEBEB", marginBottom:12 }}>
-            {boardDef.cols.map(col=>{
-              const cc = COL_COLORS[col.id]||{bg:"#F9F9F9",bar:"#DDD"};
-              return (
-                <button key={col.id} onClick={()=>setActiveTab(col.id)}
-                  style={{ flex:1, padding:"10px 4px", fontSize:12, fontWeight:activeTab===col.id?700:400,
-                    color:activeTab===col.id?"#111":"#AAA", background:activeTab===col.id?cc.bg:"transparent",
-                    border:"none", borderBottom:activeTab===col.id?`2px solid ${cc.bar}`:"2px solid transparent",
-                    cursor:"pointer", fontFamily:FONT }}>
-                  {col.ko} <span style={{ fontSize:10, color:"#BBB" }}>{byCol(col.id).length}</span>
-                </button>
-              );
-            })}
+          <div style={{ display:"flex",borderBottom:"1px solid #EBEBEB",marginBottom:12 }}>
+            {boardDef.cols.map(col=>{ const cc=COL_COLORS[col.id]||{bg:"#F9F9F9",bar:"#DDD"}; return (
+              <button key={col.id} onClick={()=>setActiveTab(col.id)}
+                style={{ flex:1,padding:"10px 4px",fontSize:12,fontWeight:activeTab===col.id?700:400,
+                  color:activeTab===col.id?"#111":"#AAA",background:activeTab===col.id?cc.bg:"transparent",
+                  border:"none",borderBottom:activeTab===col.id?`2px solid ${cc.bar}`:"2px solid transparent",cursor:"pointer",fontFamily:FONT }}>
+                {col.ko} <span style={{ fontSize:10,color:"#BBB" }}>{byCol(col.id).length}</span>
+              </button>
+            );})}
           </div>
-          {byCol(activeTab).map(card=><CardItem key={card.id} card={card} mobile={true}/>)}
-          <button onClick={()=>openAdd(activeTab)} style={{ width:"100%", padding:"12px", borderRadius:8, border:"1px dashed #E0E0E0", background:"transparent", cursor:"pointer", color:"#BABABA", fontSize:13, fontFamily:FONT }}>+ 추가</button>
+          <div data-colid={activeTab} data-boardid={boardDef.id} style={{ minHeight:60 }}>
+            {byCol(activeTab).map(card=>renderCard(card))}
+          </div>
+          <button onClick={()=>openAdd(activeTab)} style={{ width:"100%",padding:"12px",borderRadius:8,border:"1px dashed #E0E0E0",background:"transparent",cursor:"pointer",color:"#BABABA",fontSize:13,fontFamily:FONT }}>+ 추가</button>
         </div>
       ) : (
-        <div style={{ display:"flex", gap:10 }}>
-          {boardDef.cols.map(col=>{
-            const cc = COL_COLORS[col.id]||{bg:"#F9F9F9",bar:"#DDD"};
-            const isOver = dragOverCol===col.id;
-            return (
-              <div key={col.id} style={{ flex:1, minWidth:0, background:cc.bg, borderRadius:10, padding:"10px 8px 8px", border:`1px solid ${isOver?cc.bar:"transparent"}`, transition:"border 0.15s" }}
-                onDragOver={e=>{e.preventDefault();setDragOverCol(col.id);}}
-                onDragLeave={()=>setDragOverCol(null)}
-                onDrop={e=>onDropCol(e,col.id)}>
-                <div style={{ marginBottom:8 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                    <div style={{ width:8, height:8, borderRadius:"50%", background:cc.bar }}/>
-                    <span style={{ fontSize:12, fontWeight:700, color:"#111" }}>{col.ko}</span>
-                    <span style={{ fontSize:9, color:"#BBB" }}>{col.en}</span>
-                    <span style={{ marginLeft:"auto", fontSize:11, color:"#BBB", fontWeight:600, background:"rgba(0,0,0,0.06)", borderRadius:8, padding:"1px 7px" }}>{byCol(col.id).length}</span>
-                  </div>
-                  <div style={{ height:2, borderRadius:2, marginTop:6, background:cc.bar, opacity:0.5 }}/>
+        <div style={{ display:"flex",gap:10 }}>
+          {boardDef.cols.map(col=>{ const cc=COL_COLORS[col.id]||{bg:"#F9F9F9",bar:"#DDD"}; const isOver=dragOverCol===col.id; return (
+            <div key={col.id} data-colid={col.id} data-boardid={boardDef.id}
+              style={{ flex:1,minWidth:0,background:isOver?`${cc.bg}dd`:cc.bg,borderRadius:10,padding:"10px 8px 8px",border:`2px solid ${isOver?cc.bar:"transparent"}`,transition:"all 0.15s" }}
+              onDragOver={e=>{ e.preventDefault(); setDragOverCol(col.id); }}
+              onDragLeave={e=>{ if(!e.currentTarget.contains(e.relatedTarget))setDragOverCol(null); }}
+              onDrop={e=>handleDrop(e,col.id)}>
+              <div style={{ marginBottom:8 }}>
+                <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                  <div style={{ width:8,height:8,borderRadius:"50%",background:cc.bar }}/>
+                  <span style={{ fontSize:12,fontWeight:700,color:"#111" }}>{col.ko}</span>
+                  <span style={{ fontSize:9,color:"#BBB" }}>{col.en}</span>
+                  <span style={{ marginLeft:"auto",fontSize:11,color:"#AAA",fontWeight:600,background:"rgba(0,0,0,0.06)",borderRadius:8,padding:"1px 7px" }}>{byCol(col.id).length}</span>
                 </div>
-                {byCol(col.id).map(card=><CardItem key={card.id} card={card} mobile={false}/>)}
-                <button onClick={()=>openAdd(col.id)}
-                  style={{ width:"100%", textAlign:"left", fontSize:11, padding:"6px 7px", borderRadius:6, border:`1px dashed ${cc.bar}`, background:"rgba(255,255,255,0.6)", cursor:"pointer", color:"#AAA", display:"flex", alignItems:"center", gap:4, fontFamily:FONT }}>
-                  + 추가
-                </button>
+                <div style={{ height:2,borderRadius:2,marginTop:6,background:cc.bar,opacity:0.5 }}/>
               </div>
-            );
-          })}
+              {byCol(col.id).map(card=>renderCard(card))}
+              <button onClick={()=>openAdd(col.id)}
+                style={{ width:"100%",textAlign:"left",fontSize:11,padding:"6px 7px",borderRadius:6,border:`1px dashed ${cc.bar}`,background:"rgba(255,255,255,0.6)",cursor:"pointer",color:"#AAA",display:"flex",alignItems:"center",gap:4,fontFamily:FONT }}>
+                + 추가
+              </button>
+            </div>
+          );})}
         </div>
       )}
 
@@ -421,53 +398,48 @@ function Board({ boardDef, panelState, setPanelState, hidePersonal, allCardsRef,
   );
 }
 
-// ── 앱 루트 ─────────────────────────────────────────────────────────
+// ── 앱 루트 ──────────────────────────────────────────────────────────
 export default function App() {
-  const [panelState, setPanelState] = useState(null);
-  const [hidePersonal, setHidePersonal] = useState(false);
-  const [globalDragging, setGlobalDragging] = useState(null);
-  const [showCalendar, setShowCalendar] = useState(false);
+  const [panelState,setPanelState] = useState(null);
+  const [hidePersonal,setHidePersonal] = useState(false);
+  const [showCalendar,setShowCalendar] = useState(false);
   const isMobile = useIsMobile();
-  const allCardsRef = {};
-  const onTrashDrop = {};
+  const allCardsRef = useRef({});
 
-  const handleDateClick = (dateStr)=>{ setPanelState({boardId:"work",mode:"add",form:{colId:"todo",title:"",note:"",dueDate:dateStr,labelId:"default"}}); if(isMobile)setShowCalendar(false); };
-  const allCards = Object.values(allCardsRef).flat();
+  const handleDateClick = (ds) => { setPanelState({boardId:"work",mode:"add",form:{colId:"todo",title:"",note:"",dueDate:ds,labelId:"default"}}); if(isMobile)setShowCalendar(false); };
+
+  const allCards = Object.values(allCardsRef.current).flatMap(b=>b.cards||[]);
 
   return (
-    <div style={{ fontFamily:FONT, background:"#F7F8FA", minHeight:"100vh" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700&display=swap'); *{-webkit-tap-highlight-color:transparent;box-sizing:border-box;} .date-slider::-webkit-scrollbar{display:none}`}</style>
+    <div style={{ fontFamily:FONT,background:"#F7F8FA",minHeight:"100vh" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700&display=swap'); *{-webkit-tap-highlight-color:transparent;box-sizing:border-box;}`}</style>
 
-      {/* 헤더 */}
-      <div style={{ padding:isMobile?"12px 16px":"14px 20px 10px", borderBottom:"1px solid #EBEBEB", display:"flex", alignItems:"center", background:"#fff", position:"sticky", top:0, zIndex:100 }}>
-        <p style={{ margin:0, fontSize:isMobile?11:13, color:"#BABABA", fontStyle:"italic" }}>Manifesting aura; making the intangible tangible.</p>
-        <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:10 }}>
-          {isMobile&&<button onClick={()=>setShowCalendar(v=>!v)} style={{ background:"none", border:"none", fontSize:20, cursor:"pointer", color:showCalendar?"#111":"#CCC", padding:0 }}>📅</button>}
-          <label style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer", fontSize:isMobile?11:12, color:"#888", userSelect:"none" }}>
-            <div onClick={()=>setHidePersonal(v=>!v)} style={{ width:34, height:18, borderRadius:10, background:hidePersonal?"#111":"#DDD", position:"relative", transition:"background 0.2s", cursor:"pointer", flexShrink:0 }}>
-              <div style={{ width:14, height:14, borderRadius:"50%", background:"#fff", position:"absolute", top:2, left:hidePersonal?18:2, transition:"left 0.2s", boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }}/>
+      <div style={{ padding:isMobile?"12px 16px":"14px 20px 10px",borderBottom:"1px solid #EBEBEB",display:"flex",alignItems:"center",background:"#fff",position:"sticky",top:0,zIndex:100 }}>
+        <p style={{ margin:0,fontSize:isMobile?11:13,color:"#BABABA",fontStyle:"italic" }}>Manifesting aura; making the intangible tangible.</p>
+        <div style={{ marginLeft:"auto",display:"flex",alignItems:"center",gap:10 }}>
+          {isMobile&&<button onClick={()=>setShowCalendar(v=>!v)} style={{ background:"none",border:"none",fontSize:20,cursor:"pointer",color:showCalendar?"#111":"#CCC",padding:0 }}>📅</button>}
+          <label style={{ display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:isMobile?11:12,color:"#888",userSelect:"none" }}>
+            <div onClick={()=>setHidePersonal(v=>!v)} style={{ width:34,height:18,borderRadius:10,background:hidePersonal?"#111":"#DDD",position:"relative",transition:"background 0.2s",cursor:"pointer",flexShrink:0 }}>
+              <div style={{ width:14,height:14,borderRadius:"50%",background:"#fff",position:"absolute",top:2,left:hidePersonal?18:2,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }}/>
             </div>
             {!isMobile&&"개인일정 숨기기"}
           </label>
         </div>
       </div>
 
-      {isMobile&&showCalendar&&<div style={{ padding:"16px", background:"#fff", borderBottom:"1px solid #EBEBEB" }}><MiniCalendar allCards={allCards} onDateClick={handleDateClick} isMobile={true}/></div>}
+      {isMobile&&showCalendar&&<div style={{ padding:"16px",background:"#fff",borderBottom:"1px solid #EBEBEB" }}><MiniCalendar allCards={allCards} onDateClick={handleDateClick}/></div>}
 
-      <div style={{ display:"flex", alignItems:"flex-start" }}>
-        {!isMobile&&<div style={{ width:240, flexShrink:0, padding:"18px 14px", position:"sticky", top:50 }}><MiniCalendar allCards={allCards} onDateClick={handleDateClick} isMobile={false}/></div>}
-        <div style={{ flex:1, padding:isMobile?"16px":"18px 20px 18px 6px", marginRight:(!isMobile&&panelState)?300:0, transition:"margin-right 0.22s ease", minWidth:0 }}>
+      <div style={{ display:"flex",alignItems:"flex-start" }}>
+        {!isMobile&&<div style={{ width:240,flexShrink:0,padding:"18px 14px",position:"sticky",top:50 }}><MiniCalendar allCards={allCards} onDateClick={handleDateClick}/></div>}
+        <div style={{ flex:1,padding:isMobile?"16px":"18px 20px 18px 6px",marginRight:(!isMobile&&panelState)?300:0,transition:"margin-right 0.22s ease",minWidth:0 }}>
           {BOARDS_DEF.filter(b=>!(hidePersonal&&b.id==="personal")).map(b=>(
             <Board key={b.id} boardDef={b} panelState={panelState} setPanelState={setPanelState}
-              hidePersonal={hidePersonal} allCardsRef={allCardsRef}
-              globalDragging={globalDragging} setGlobalDragging={setGlobalDragging}
-              onTrashDrop={onTrashDrop} isMobile={isMobile}/>
+              hidePersonal={hidePersonal} allCardsRef={allCardsRef.current} isMobile={isMobile}/>
           ))}
         </div>
       </div>
 
-      {panelState&&<div onClick={()=>setPanelState(null)} style={{ position:"fixed", inset:0, zIndex:499, background:isMobile?"rgba(0,0,0,0.3)":"transparent" }}/>}
-      {!isMobile&&<TrashZone dragging={globalDragging} onDrop={()=>{if(globalDragging){onTrashDrop[globalDragging.boardId]?.(globalDragging.cardId);setGlobalDragging(null);}}}/>}
+      {panelState&&<div onClick={()=>setPanelState(null)} style={{ position:"fixed",inset:0,zIndex:499,background:isMobile?"rgba(0,0,0,0.3)":"transparent" }}/>}
     </div>
   );
 }
