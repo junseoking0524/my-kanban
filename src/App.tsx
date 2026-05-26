@@ -275,27 +275,31 @@ function Board({ boardDef, panelState, setPanelState, hidePersonal, allCardsRef,
     const t=e.touches[0];
     const el=e.currentTarget;
     const c=el.cloneNode(true) as HTMLElement;
-    c.style.cssText=`position:fixed;opacity:0.75;pointer-events:none;z-index:9999;width:${el.offsetWidth}px;left:${t.clientX-el.offsetWidth/2}px;top:${t.clientY-30}px;border-radius:8px;`;
+    c.style.cssText=`position:fixed;opacity:0.85;pointer-events:none;z-index:9999;width:${el.offsetWidth}px;left:${t.clientX-el.offsetWidth/2}px;top:${t.clientY-el.offsetHeight/2}px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.18);transform:scale(1.03);`;
     document.body.appendChild(c);
     cloneRef.current=c;
-    setTick((t: number)=>t+1);
+    setTick((n: number)=>n+1);
   };
   const onTouchMove = (e: any) => {
+    if (!gDrag.card) return;
     e.preventDefault();
     const t=e.touches[0];
-    if (cloneRef.current) { cloneRef.current.style.left=(t.clientX-parseInt(cloneRef.current.style.width)/2)+"px"; cloneRef.current.style.top=(t.clientY-30)+"px"; }
+    if (cloneRef.current) { cloneRef.current.style.left=(t.clientX-parseInt(cloneRef.current.style.width)/2)+"px"; cloneRef.current.style.top=(t.clientY-cloneRef.current.offsetHeight/2)+"px"; }
     const el=document.elementFromPoint(t.clientX,t.clientY);
+    const tabEl=el?.closest("[data-tabid]");
+    if (tabEl) setActiveTab((tabEl as HTMLElement).dataset.tabid!);
     const colEl=el?.closest("[data-colid]");
     setDragOverCol((colEl as HTMLElement)?.dataset?.colid||null);
   };
   const onTouchEnd = async (e: any) => {
     if (cloneRef.current) { cloneRef.current.remove(); cloneRef.current=null; }
+    setDragOverCol(null);
+    if (!gDrag.card) return;
     const t=e.changedTouches[0];
     const el=document.elementFromPoint(t.clientX,t.clientY);
     const colEl=el?.closest("[data-colid]");
     const targetBoardEl=el?.closest("[data-boardid]");
-    setDragOverCol(null);
-    if (colEl && gDrag.card) {
+    if (colEl) {
       const colId=(colEl as HTMLElement).dataset.colid!;
       const updatedCard={...gDrag.card,colId};
       const fromBoardId=gDrag.boardId;
@@ -304,7 +308,7 @@ function Board({ boardDef, panelState, setPanelState, hidePersonal, allCardsRef,
       else if ((targetBoardEl as HTMLElement)?.dataset?.boardid===boardDef.id) setCards((p: any)=>[...p,updatedCard]);
       await apiFetch("PUT",fromBoardId,updatedCard);
     } else { gDrag.cardId=null; gDrag.boardId=null; gDrag.card=null; }
-    setTick((t: number)=>t+1);
+    setTick((n: number)=>n+1);
   };
 
   const renderCard = (card: any) => {
@@ -350,6 +354,7 @@ function Board({ boardDef, panelState, setPanelState, hidePersonal, allCardsRef,
           <div style={{ display:"flex",borderBottom:"1px solid #EBEBEB",marginBottom:12 }}>
             {boardDef.cols.map((col: any)=>{ const cc=COL_COLORS[col.id]||{bg:"#F9F9F9",bar:"#DDD"}; return (
               <button key={col.id} onClick={()=>setActiveTab(col.id)}
+                data-tabid={col.id} data-colid={col.id} data-boardid={boardDef.id}
                 style={{ flex:1,padding:"10px 4px",fontSize:12,fontWeight:activeTab===col.id?700:400,
                   color:activeTab===col.id?"#111":"#AAA",background:activeTab===col.id?cc.bg:"transparent",
                   border:"none",borderBottom:activeTab===col.id?`2px solid ${cc.bar}`:"2px solid transparent",cursor:"pointer",fontFamily:FONT }}>
