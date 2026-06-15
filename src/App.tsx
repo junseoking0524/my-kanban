@@ -379,37 +379,61 @@ function Board({ boardDef, panelState, setPanelState, hidePersonal, allCardsRef,
         onTouchStart={(e: any)=>onTouchStart(e,card)}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
-        onClick={(e: any)=>{if((e.target as HTMLElement).closest('button'))return;openEdit(card);}}
+        onClick={(e: any)=>{if((e.target as HTMLElement).closest('button'))return;if(!isRoutine)openEdit(card);}}
         style={{
           background: isRoutine?(rs?.bg||"#fff"):"#fff",
           border: `1px solid ${isRoutine?(rs?.border||"#E8E8E8"):"#E8E8E8"}`,
-          borderLeft: `3px solid ${isRoutine?(checkedToday?"#27AE60":rs?.border||"#E8E8E8"):lbl.color}`,
-          borderRadius:8,padding:"8px 10px",marginBottom:6,cursor:"grab",opacity:isDragging?0.4:1,
+          borderLeft: `3px solid ${isRoutine?(checkedToday?"#27AE60":rs?.border||"#C4AAFA"):lbl.color}`,
+          borderRadius:8,padding:"10px 12px",marginBottom:6,cursor:isRoutine?"default":"grab",opacity:isDragging?0.4:1,
           position:"relative",boxShadow:"0 1px 3px rgba(0,0,0,0.05)",touchAction:"none",userSelect:"none"
-        } as any}
-        onMouseEnter={(e: any)=>e.currentTarget.style.boxShadow="0 2px 8px rgba(0,0,0,0.1)"}
-        onMouseLeave={(e: any)=>e.currentTarget.style.boxShadow="0 1px 3px rgba(0,0,0,0.05)"}>
+        } as any}>
+
+        {/* 삭제 버튼 */}
         <button onMouseDown={(e: any)=>e.stopPropagation()} onClick={(e: any)=>{e.stopPropagation();delCard(card.id);}}
-          style={{ position:"absolute",top:6,right:6,background:"none",border:"none",padding:"1px 4px",cursor:"pointer",fontSize:11,color:"#D8D8D8",lineHeight:1 }}
+          style={{ position:"absolute",top:8,right:8,background:"none",border:"none",padding:"1px 4px",cursor:"pointer",fontSize:11,color:"#D8D8D8",lineHeight:1 }}
           onMouseEnter={(e: any)=>e.currentTarget.style.color="#D04040"}
           onMouseLeave={(e: any)=>e.currentTarget.style.color="#D8D8D8"}>✕</button>
-        <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:4 }}>
-          {isRoutine ? (
-            <>
-              <button onMouseDown={(e: any)=>e.stopPropagation()} onClick={(e: any)=>{e.stopPropagation();toggleRoutineCheck(card.id);setTick((n: number)=>n+1);}}
-                style={{ fontSize:10,padding:"2px 8px",borderRadius:8,border:"none",cursor:"pointer",fontFamily:FONT,fontWeight:700,
-                  background:checkedToday?"#27AE60":"#F0F0F0",color:checkedToday?"#fff":"#AAA" }}>
-                {checkedToday?"✓ 완료":"체크"}
-              </button>
-              {missed>=3&&!checkedToday&&<span style={{ fontSize:9,fontWeight:700,color:missed>=7?"#C0392B":missed>=5?"#E74C3C":"#F5A0A0" }}>{missed}일 미체크</span>}
-            </>
-          ) : (
-            <span style={{ fontSize:9,padding:"1px 6px",borderRadius:8,background:lbl.color,color:lbl.text,fontWeight:700 }}>{lbl.ko}</span>
-          )}
-        </div>
-        <p style={{ margin:"0 0 2px",fontSize:12,fontWeight:600,color:"#1A1A1A",lineHeight:1.4,paddingRight:20 }}>{card.title}</p>
-        {card.note&&<p style={{ margin:0,fontSize:10,color:"#AAA",lineHeight:1.3 }}>{card.note}</p>}
-        {card.dueDate&&<span style={{ fontSize:10,color:"#BABABA",display:"flex",alignItems:"center",gap:3,marginTop:3 }}>⏰ {card.dueDate}</span>}
+
+        {isRoutine ? (
+          /* 루틴 카드 레이아웃 */
+          <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+            {/* 체크박스 */}
+            <button
+              onMouseDown={(e: any)=>e.stopPropagation()}
+              onClick={(e: any)=>{e.stopPropagation();toggleRoutineCheck(card.id);setTick((n: number)=>n+1);}}
+              style={{
+                width:28,height:28,borderRadius:"50%",border:`2px solid ${checkedToday?"#27AE60":"#CCC"}`,
+                background:checkedToday?"#27AE60":"#fff",cursor:"pointer",flexShrink:0,
+                display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,
+                transition:"all 0.15s",color:"#fff"
+              }}>
+              {checkedToday?"✓":""}
+            </button>
+            <div style={{ flex:1,minWidth:0 }}>
+              <p style={{ margin:"0 0 2px",fontSize:12,fontWeight:600,color:checkedToday?"#888":"#1A1A1A",lineHeight:1.4,paddingRight:20,
+                textDecoration:checkedToday?"line-through":"none" }}>{card.title}</p>
+              {card.note&&<p style={{ margin:0,fontSize:10,color:"#AAA",lineHeight:1.3 }}>{card.note}</p>}
+              <div style={{ display:"flex",alignItems:"center",gap:8,marginTop:4 }}>
+                {checkedToday
+                  ? <span style={{ fontSize:10,color:"#27AE60",fontWeight:600 }}>오늘 완료 ✓</span>
+                  : missed>=3
+                    ? <span style={{ fontSize:10,fontWeight:700,color:missed>=7?"#C0392B":missed>=5?"#E74C3C":"#E67E22" }}>{missed}일째 미체크 🔥</span>
+                    : <span style={{ fontSize:10,color:"#BBB" }}>오늘 체크하세요</span>
+                }
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* 일반 카드 레이아웃 */
+          <>
+            <div style={{ display:"flex",alignItems:"center",gap:5,marginBottom:4 }}>
+              <span style={{ fontSize:9,padding:"1px 6px",borderRadius:8,background:lbl.color,color:lbl.text,fontWeight:700 }}>{lbl.ko}</span>
+            </div>
+            <p style={{ margin:"0 0 2px",fontSize:12,fontWeight:600,color:"#1A1A1A",lineHeight:1.4,paddingRight:20 }}>{card.title}</p>
+            {card.note&&<p style={{ margin:0,fontSize:10,color:"#AAA",lineHeight:1.3 }}>{card.note}</p>}
+            {card.dueDate&&<span style={{ fontSize:10,color:"#BABABA",display:"flex",alignItems:"center",gap:3,marginTop:3 }}>⏰ {card.dueDate}</span>}
+          </>
+        )}
       </div>
     );
   };
