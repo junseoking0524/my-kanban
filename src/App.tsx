@@ -33,7 +33,59 @@ const HOLIDAYS: Record<string,string> = {
 };
 const isHoliday = (m: number, d: number) => HOLIDAYS[`${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`] || null;
 
-const BOARDS_DEF = [
+// ── 루틴 컬럼 감지
+const isRoutineCol = (boardId: string, colId: string) => boardId === "personal" && colId === "done2";
+
+// ── 루틴 체크 유틸
+function getTodayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function getRoutineChecks(): Record<string, string[]> {
+  try { return JSON.parse(localStorage.getItem("routine_checks") || "{}"); } catch { return {}; }
+}
+function saveRoutineChecks(data: Record<string, string[]>) {
+  localStorage.setItem("routine_checks", JSON.stringify(data));
+}
+function toggleRoutineCheck(cardId: string) {
+  const data = getRoutineChecks();
+  const today = getTodayStr();
+  if (!data[cardId]) data[cardId] = [];
+  if (data[cardId].includes(today)) {
+    data[cardId] = data[cardId].filter(d => d !== today);
+  } else {
+    data[cardId] = [...data[cardId], today];
+  }
+  saveRoutineChecks(data);
+}
+function isCheckedToday(cardId: string) {
+  const data = getRoutineChecks();
+  return (data[cardId] || []).includes(getTodayStr());
+}
+function getMissedDays(cardId: string): number {
+  const data = getRoutineChecks();
+  const checks = data[cardId] || [];
+  if (checks.length === 0) return 0;
+  let missed = 0;
+  const today = new Date();
+  for (let i = 1; i <= 30; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const str = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    if (checks.includes(str)) break;
+    missed++;
+  }
+  return missed;
+}
+function getRoutineColor(cardId: string): { bg: string; border: string; text: string } {
+  const missed = getMissedDays(cardId);
+  if (missed >= 7) return { bg:"#FFE0E0", border:"#C0392B", text:"#7B0000" };
+  if (missed >= 5) return { bg:"#FFEBE8", border:"#E74C3C", text:"#922B21" };
+  if (missed >= 3) return { bg:"#FFF0EE", border:"#F5A0A0", text:"#C0392B" };
+  return { bg:"#fff", border:"#E8E8E8", text:"#1A1A1A" };
+}
+
+
   { id:"work", title:"업무 칸반보드", titleEn:"WORK BOARD",
     cols:[
       {id:"todo", ko:"할 일", en:"TO DO", ja:"やること"},
@@ -44,7 +96,7 @@ const BOARDS_DEF = [
     cols:[
       {id:"check", ko:"확인", en:"CHECK", ja:"確認"},
       {id:"carry", ko:"챙길 것", en:"TO BRING", ja:"持ち物"},
-      {id:"done2", ko:"완료", en:"DONE", ja:"完了"},
+      {id:"done2", ko:"루틴", en:"ROUTINE", ja:"ルーティン"},
     ]},
 ];
 
@@ -311,9 +363,15 @@ function Board({ boardDef, panelState, setPanelState, hidePersonal, allCardsRef,
     setTick((n: number)=>n+1);
   };
 
+  const [routineTick, setRoutineTick] = useState(0);
+
   const renderCard = (card: any) => {
     const lbl = getLbl(card.labelId);
     const isDragging = gDrag.cardId===card.id;
+    const isRoutine = isRoutineCol(boardDef.id, card.colId);
+    const checkedToday = isRoutine ? isCheckedToday(card.id) : false;
+    const rc = isRoutine ? getRoutineColor(card.id) : null;
+    const missed = isRoutine ? getMissedDays(card.id) : 0;
     return (
       <div key={card.id}
         draggable
@@ -323,7 +381,10 @@ function Board({ boardDef, panelState, setPanelState, hidePersonal, allCardsRef,
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
         onClick={(e: any)=>{ if((e.target as HTMLElement).closest('button'))return; openEdit(card); }}
-        style={{ background:"#fff", borderLeft:`3px solid ${lbl.color}`, border:`1px solid #E8E8E8`, borderLeft:`3px solid ${lbl.color}`,
+        style={{ background: isRoutine ? (rc?.bg||"#fff") : "#fff",
+          borderLeft:`3px solid ${isRoutine ? (checkedToday?"#27AE60":rc?.border||"#E8E8E8") : lbl.color}`,
+          border:`1px solid ${isRoutine ? (checkedToday?"#27AE60":rc?.border||"#E8E8E8") : "#E8E8E8"}`,
+          borderLeft:`3px solid ${isRoutine ? (checkedToday?"#27AE60":rc?.border||"#E8E8E8") : lbl.color}`,
           borderRadius:8, padding:"8px 10px", marginBottom:6, cursor:"grab", opacity:isDragging?0.4:1,
           position:"relative", boxShadow:"0 1px 3px rgba(0,0,0,0.05)", touchAction:"none", userSelect:"none" } as any}
         onMouseEnter={(e: any)=>e.currentTarget.style.boxShadow="0 2px 8px rgba(0,0,0,0.1)"}
@@ -333,7 +394,20 @@ function Board({ boardDef, panelState, setPanelState, hidePersonal, allCardsRef,
           onMouseEnter={(e: any)=>e.currentTarget.style.color="#D04040"}
           onMouseLeave={(e: any)=>e.currentTarget.style.color="#D8D8D8"}>✕</button>
         <div style={{ display:"flex",alignItems:"center",gap:5,marginBottom:4 }}>
-          <span style={{ fontSize:9,padding:"1px 6px",borderRadius:8,background:lbl.color,color:lbl.text,fontWeight:700 }}>{lbl.ko}</span>
+          {isRoutine ? (
+            <button onMouseDown={(e: any)=>e.stopPropagation()} onClick={(e: any)=>{ e.stopPropagation(); toggleRoutineCheck(card.id); setRoutineTick(n=>n+1); }}
+              style={{ fontSize:10, padding:"2px 8px", borderRadius:8, border:"none", cursor:"pointer", fontFamily:FONT, fontWeight:700,
+                background: checkedToday?"#27AE60":"#F0F0F0", color: checkedToday?"#fff":"#AAA" }}>
+              {checkedToday ? "✓ 완료" : "체크"}
+            </button>
+          ) : (
+            <span style={{ fontSize:9,padding:"1px 6px",borderRadius:8,background:lbl.color,color:lbl.text,fontWeight:700 }}>{lbl.ko}</span>
+          )}
+          {isRoutine && missed >= 3 && !checkedToday && (
+            <span style={{ fontSize:9, color: missed>=7?"#C0392B":missed>=5?"#E74C3C":"#F5A0A0", fontWeight:700 }}>
+              {missed}일 미체크
+            </span>
+          )}
         </div>
         <p style={{ margin:"0 0 2px",fontSize:12,fontWeight:600,color:"#1A1A1A",lineHeight:1.4,paddingRight:20 }}>{card.title}</p>
         {card.note&&<p style={{ margin:0,fontSize:10,color:"#AAA",lineHeight:1.3 }}>{card.note}</p>}
