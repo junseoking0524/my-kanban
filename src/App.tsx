@@ -92,6 +92,9 @@ const STYLE = `
     outline:none; transition:border-color .15s, box-shadow .15s;
   }
   .k-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-lt); }
+  /* Panel field inputs — black border, subtle focus ring */
+  .panel-field-input { font-family:inherit; }
+  .panel-field-input:focus { outline:none; border-color:#111 !important; box-shadow:0 0 0 2px rgba(0,0,0,.08); }
   .quick-input { width:100%; border:1px solid var(--border); border-radius:var(--radius-sm);
     padding:6px 9px; font-size:12px; background:var(--surface); color:var(--text); outline:none; margin-top:4px; }
   .quick-input:focus { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-lt); }
@@ -392,14 +395,51 @@ function MiniCalendar({cards, onDayClick}:{cards:Card[];onDayClick:(d:string)=>v
 // ─────────────────────────────────────────────────────────────────────────────
 // SidePanel
 // ─────────────────────────────────────────────────────────────────────────────
+// Parse stored YYYY-MM-DD[THH:mm] → display "MM/DD HH:mm" or "MM/DD"
+function dueDateToDisplay(stored:string):string {
+  if(!stored) return "";
+  const datePart=stored.slice(0,10);
+  const timePart=stored.length>10?stored.slice(11,16):"";
+  const [,mo,d]=datePart.split("-");
+  return timePart?`${mo}/${d} ${timePart}`:`${mo}/${d}`;
+}
+// Parse user input "MM/DD" or "MM/DD HH:mm" → "YYYY-MM-DD" or "YYYY-MM-DDTHH:mm"
+function displayToDueDate(raw:string):string {
+  const s=raw.trim();
+  if(!s) return "";
+  // Match MM/DD or MM/DD HH:mm
+  const m=s.match(/^(\d{1,2})\/(\d{1,2})(?:\s+(\d{1,2}):(\d{2}))?$/);
+  if(!m) return s; // return as-is if unrecognized
+  const year=new Date().getFullYear();
+  const mo=String(m[1]).padStart(2,"0");
+  const day=String(m[2]).padStart(2,"0");
+  if(m[3]&&m[4]){
+    const hh=String(m[3]).padStart(2,"0");
+    const mm=String(m[4]).padStart(2,"0");
+    return `${year}-${mo}-${day}T${hh}:${mm}`;
+  }
+  return `${year}-${mo}-${day}`;
+}
+
 function SidePanel({card,boardId,onClose,onSave,onDelete,allTags}:{
   card:Card|null; boardId:string;
   onClose:()=>void; onSave:(c:Card)=>void; onDelete:(id:string)=>void; allTags:string[];
 }) {
   const [form,setForm] = useState<Card>(card||{id:"",colId:"",title:""});
   const [tagInput,setTagInput] = useState("");
+  // dueDate display string (MM/DD or MM/DD HH:mm)
+  const [dueDateDisplay,setDueDateDisplay] = useState(()=>dueDateToDisplay(card?.dueDate||""));
   const titleRef = useRef<HTMLTextAreaElement>(null);
-  useEffect(()=>{setForm(card||{id:"",colId:"",title:""});setTagInput("");setTimeout(()=>titleRef.current?.focus(),80);},[card]);
+  const saveRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(()=>{
+    const c=card||{id:"",colId:"",title:""};
+    setForm(c);
+    setTagInput("");
+    setDueDateDisplay(dueDateToDisplay(c.dueDate||""));
+    setTimeout(()=>titleRef.current?.focus(),80);
+  },[card]);
+
   if(!card) return null;
 
   const isPersonal = boardId==="personal";
@@ -416,92 +456,168 @@ function SidePanel({card,boardId,onClose,onSave,onDelete,allTags}:{
   };
   const removeTag=(t:string)=>setForm(f=>({...f,tags:(f.tags||[]).filter(x=>x!==t)}));
 
-  const Field=({label,children}:{label:string;children:React.ReactNode})=>(
+  const commitDue=()=>{
+    setForm(f=>({...f,dueDate:displayToDueDate(dueDateDisplay)}));
+  };
+
+  // 저장 단축키: 제목에서 Ctrl+Enter 혹은 저장 버튼 Tab→Enter
+  const handleTitleKey=(e:React.KeyboardEvent)=>{
+    if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();onSave({...form,dueDate:displayToDueDate(dueDateDisplay)});}
+  };
+
+  const panelInputStyle:React.CSSProperties={
+    width:"100%", border:"1px solid #1a1a1a", borderRadius:5,
+    padding:"7px 10px", fontSize:12.5, background:"#fff", color:"#1a1a1a",
+    outline:"none", fontFamily:"inherit",
+  };
+  const panelInputFocusCls="panel-field-input";
+
+  const Field=({label,children,hint}:{label:string;children:React.ReactNode;hint?:string})=>(
     <div>
-      <div style={{fontSize:10,fontWeight:600,color:"var(--text-light)",letterSpacing:"0.07em",
-        textTransform:"uppercase",marginBottom:5}}>{label}</div>
+      <div style={{fontSize:10,fontWeight:600,color:"#888",letterSpacing:"0.07em",
+        textTransform:"uppercase",marginBottom:4,display:"flex",alignItems:"center",gap:6}}>
+        {label}
+        {hint&&<span style={{fontWeight:400,fontSize:9.5,color:"#aaa",textTransform:"none",letterSpacing:0}}>{hint}</span>}
+      </div>
       {children}
     </div>
   );
 
   return (
-    <div style={{position:"fixed",inset:0,zIndex:300,display:"flex"}} onKeyDown={e=>{if(e.key==="Escape")onClose();}}>
-      <div onClick={onClose} style={{flex:1,background:"rgba(0,0,0,.3)",backdropFilter:"blur(2px)"}}/>
-      <div style={{width:320,background:"var(--surface)",borderLeft:"1px solid var(--border)",
-        display:"flex",flexDirection:"column",overflowY:"auto",boxShadow:"-8px 0 32px rgba(0,0,0,.1)"}}>
-        <div style={{padding:"15px 18px 13px",borderBottom:"1px solid var(--border-lt)",
-          display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span style={{fontWeight:600,fontSize:13.5,letterSpacing:"-0.01em"}}>{form.id?"카드 편집":"새 카드"}</span>
-          <button onClick={onClose} style={{fontSize:22,color:"var(--text-light)",lineHeight:1,width:28,height:28,
-            display:"flex",alignItems:"center",justifyContent:"center",borderRadius:6}}>×</button>
+    <div style={{position:"fixed",inset:0,zIndex:300,display:"flex"}}
+      onKeyDown={e=>{if(e.key==="Escape"){e.stopPropagation();onClose();}}}>
+      <div onClick={onClose} style={{flex:1,background:"rgba(0,0,0,.25)",backdropFilter:"blur(1px)"}}/>
+      {/* Panel */}
+      <div style={{width:300,background:"#fff",borderLeft:"1px solid #ddd",
+        display:"flex",flexDirection:"column",overflowY:"auto",
+        boxShadow:"-6px 0 24px rgba(0,0,0,.08)"}}>
+        {/* Header */}
+        <div style={{padding:"13px 16px 11px",borderBottom:"1px solid #eee",
+          display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fafafa"}}>
+          <span style={{fontWeight:700,fontSize:13,color:"#111",letterSpacing:"-0.01em"}}>
+            {form.id?"카드 편집":"새 카드"}
+          </span>
+          <button onClick={onClose} style={{fontSize:20,color:"#aaa",lineHeight:1,width:26,height:26,
+            display:"flex",alignItems:"center",justifyContent:"center",borderRadius:5,
+            border:"1px solid #ddd",background:"#fff"}}>×</button>
         </div>
-        <div style={{padding:"16px 18px",display:"flex",flexDirection:"column",gap:14,flex:1}}>
+
+        {/* Fields */}
+        <div style={{padding:"14px 16px",display:"flex",flexDirection:"column",gap:12,flex:1}}>
+
+          {/* 제목 */}
           <Field label="제목">
-            <textarea ref={titleRef} value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} rows={2}
-              className="k-input" style={{resize:"vertical"}}/>
+            <textarea ref={titleRef} value={form.title}
+              onChange={e=>setForm(f=>({...f,title:e.target.value}))}
+              onKeyDown={handleTitleKey}
+              rows={2}
+              placeholder="카드 제목 (Ctrl+Enter로 저장)"
+              className={panelInputFocusCls}
+              style={{...panelInputStyle,resize:"none",lineHeight:1.5}}/>
           </Field>
-          <Field label="진행률">
+
+          {/* 진행률 */}
+          <Field label="진행률 %" hint="0–100, 방향키로 조절">
             <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <div style={{flex:1}}>
-                <CardProgressBar value={form.progress??0} onChange={v=>setForm(f=>({...f,progress:v}))}/>
+              <div style={{flex:1,height:4,background:"#eee",borderRadius:2,overflow:"hidden",border:"1px solid #ddd"}}>
+                <div style={{height:"100%",width:`${form.progress??0}%`,
+                  background:(form.progress??0)>=100?"#16a34a":(form.progress??0)>=50?"#2563eb":"#6366f1",
+                  transition:"width .2s"}}/>
               </div>
               <input type="number" min={0} max={100} value={form.progress??0}
+                className={panelInputFocusCls}
                 onChange={e=>setForm(f=>({...f,progress:Math.min(100,Math.max(0,Number(e.target.value)))}))}
-                style={{width:46,border:"1px solid var(--border)",borderRadius:5,padding:"3px 5px",
-                  fontSize:11,textAlign:"center",background:"var(--bg)",color:"var(--text)",outline:"none"}}/>
+                onKeyDown={e=>{
+                  if(e.key==="ArrowUp"){e.preventDefault();setForm(f=>({...f,progress:Math.min(100,(f.progress??0)+5)}));}
+                  if(e.key==="ArrowDown"){e.preventDefault();setForm(f=>({...f,progress:Math.max(0,(f.progress??0)-5)}));}
+                }}
+                style={{...panelInputStyle,width:52,textAlign:"center",padding:"5px 4px",fontSize:12}}/>
             </div>
           </Field>
+
+          {/* 메모 */}
           <Field label="메모">
             <textarea value={form.note||""} onChange={e=>setForm(f=>({...f,note:e.target.value}))} rows={3}
-              className="k-input" style={{resize:"vertical",fontSize:12}}/>
+              className={panelInputFocusCls}
+              style={{...panelInputStyle,resize:"none",fontSize:12,lineHeight:1.5}}/>
           </Field>
-          <Field label="마감일">
-            <input type="date" value={form.dueDate||""} onChange={e=>setForm(f=>({...f,dueDate:e.target.value}))}
-              className="k-input" style={{fontSize:12}}/>
+
+          {/* 마감일 */}
+          <Field label="마감일" hint="MM/DD 또는 MM/DD HH:mm">
+            <input value={dueDateDisplay}
+              onChange={e=>setDueDateDisplay(e.target.value)}
+              onBlur={commitDue}
+              onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();commitDue();(e.currentTarget.nextElementSibling as HTMLElement|null)?.focus();}}}
+              placeholder="06/17 또는 06/17 14:00"
+              className={panelInputFocusCls}
+              style={{...panelInputStyle,fontSize:12}}/>
           </Field>
-          <Field label="라벨">
-            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-              {labels.map(l=>(
-                <button key={l.id} onClick={()=>setForm(f=>({...f,labelId:f.labelId===l.id?undefined:l.id}))}
-                  style={{padding:"4px 11px",borderRadius:6,border:`1.5px solid ${l.color}`,
-                    background:form.labelId===l.id?l.color:"transparent",
-                    color:form.labelId===l.id?"#fff":l.color,fontSize:11,fontWeight:600,
-                    transition:"background .12s, color .12s"}}>
+
+          {/* 라벨 */}
+          <Field label="라벨" hint="Tab으로 이동, Space/Enter로 선택">
+            <div style={{display:"flex",flexWrap:"wrap",gap:5}} role="group">
+              {labels.map((l,i)=>(
+                <button key={l.id}
+                  tabIndex={0}
+                  onKeyDown={e=>{
+                    if(e.key===" "||e.key==="Enter"){e.preventDefault();setForm(f=>({...f,labelId:f.labelId===l.id?undefined:l.id}));}
+                    // Left/Right arrow to move between labels
+                    if(e.key==="ArrowRight"){e.preventDefault();(e.currentTarget.parentElement?.children[i+1] as HTMLElement|null)?.focus();}
+                    if(e.key==="ArrowLeft"){e.preventDefault();(e.currentTarget.parentElement?.children[i-1] as HTMLElement|null)?.focus();}
+                  }}
+                  onClick={()=>setForm(f=>({...f,labelId:f.labelId===l.id?undefined:l.id}))}
+                  style={{padding:"4px 10px",borderRadius:5,
+                    border:form.labelId===l.id?`1.5px solid ${l.color}`:"1px solid #ccc",
+                    background:form.labelId===l.id?l.color:"#fff",
+                    color:form.labelId===l.id?"#fff":"#555",fontSize:11,fontWeight:600,
+                    cursor:"pointer",transition:"all .12s",outline:"none"}}>
                   {l.ko}
                 </button>
               ))}
             </div>
           </Field>
-          <Field label="태그">
+
+          {/* 태그 */}
+          <Field label="태그" hint="입력 후 Enter">
             <div style={{display:"flex",gap:5,marginBottom:5}}>
               <input value={tagInput} onChange={e=>setTagInput(e.target.value)}
                 onKeyDown={e=>{if(e.key==="Enter"||e.key===","){ e.preventDefault();addTag();}}}
-                placeholder="입력 후 Enter" className="k-input" style={{fontSize:12}}/>
-              <button onClick={addTag}
-                style={{padding:"0 12px",background:"var(--n800)",color:"#fff",borderRadius:6,fontSize:12,fontWeight:600,flexShrink:0}}>+</button>
+                placeholder="태그 입력 후 Enter"
+                className={panelInputFocusCls}
+                style={{...panelInputStyle,fontSize:12}}/>
             </div>
+            {/* 기존 태그 추천 */}
             {allTags.filter(t=>!(form.tags||[]).includes(t)).slice(0,8).map(t=>(
               <span key={t} onClick={()=>setForm(f=>({...f,tags:[...(f.tags||[]),t]}))}
-                style={{cursor:"pointer",fontSize:10,padding:"1px 7px",borderRadius:4,marginRight:3,marginBottom:3,display:"inline-block",
-                  border:"1px dashed var(--border)",color:"var(--text-sub)"}}>+{t}</span>
+                style={{cursor:"pointer",fontSize:10,padding:"2px 7px",borderRadius:4,
+                  marginRight:3,marginBottom:3,display:"inline-block",
+                  border:"1px dashed #ccc",color:"#777"}}>+{t}</span>
             ))}
-            <div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:3}}>
+            <div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:4}}>
               {(form.tags||[]).map(t=>(
                 <span key={t} className="tag-pill">
                   {t}
-                  <span onClick={()=>removeTag(t)} style={{cursor:"pointer",opacity:.5,marginLeft:2,fontSize:12,lineHeight:1}}>×</span>
+                  <span onClick={()=>removeTag(t)}
+                    style={{cursor:"pointer",opacity:.5,marginLeft:2,fontSize:12,lineHeight:1}}>×</span>
                 </span>
               ))}
             </div>
           </Field>
         </div>
-        <div style={{padding:"12px 18px",borderTop:"1px solid var(--border-lt)",display:"flex",gap:6}}>
-          <button onClick={()=>onSave(form)}
-            style={{flex:1,padding:"8px",background:"var(--n900)",color:"#fff",borderRadius:7,
-              fontWeight:600,fontSize:13,letterSpacing:"-0.01em"}}>저장</button>
+
+        {/* Footer buttons */}
+        <div style={{padding:"11px 16px",borderTop:"1px solid #eee",display:"flex",gap:6,background:"#fafafa"}}>
+          <button ref={saveRef}
+            onClick={()=>onSave({...form,dueDate:displayToDueDate(dueDateDisplay)})}
+            onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();onSave({...form,dueDate:displayToDueDate(dueDateDisplay)});}}}
+            style={{flex:1,padding:"8px",background:"#111",color:"#fff",borderRadius:6,
+              fontWeight:700,fontSize:12.5,letterSpacing:"-0.01em",border:"none",cursor:"pointer"}}>
+            저장
+          </button>
           {form.id&&(
             <button onClick={()=>onDelete(form.id)}
-              style={{padding:"8px 14px",background:"var(--red)",color:"#fff",borderRadius:7,fontWeight:600,fontSize:13}}>삭제</button>
+              style={{padding:"8px 13px",background:"#fff",color:"#dc2626",borderRadius:6,
+                fontWeight:600,fontSize:12.5,border:"1px solid #dc2626",cursor:"pointer"}}>삭제</button>
           )}
         </div>
       </div>
