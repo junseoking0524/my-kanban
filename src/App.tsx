@@ -121,25 +121,27 @@ const STYLE = `
 
   /* Mandala */
   .mandala-grid {
-    display:grid; grid-template-columns:repeat(3,1fr); gap:3px;
+    display:grid; grid-template-columns:repeat(3,1fr); gap:4px;
   }
   .mandala-block {
     display:grid; grid-template-columns:repeat(3,1fr); gap:2px;
     background:var(--border); border-radius:var(--radius-sm); overflow:hidden; padding:2px;
   }
   .mandala-cell {
-    background:var(--surface); border-radius:4px; padding:5px 4px;
-    font-size:11px; line-height:1.35; text-align:center; cursor:pointer;
-    min-height:40px; display:flex; align-items:center; justify-content:center;
+    background:var(--surface); border-radius:4px;
+    aspect-ratio:1/1;
+    display:flex; align-items:center; justify-content:center;
+    text-align:center; cursor:pointer; overflow:hidden;
     word-break:break-all; border:1px solid transparent;
     transition:border-color .12s, background .12s;
+    padding:4px;
   }
   .mandala-cell:hover { border-color:var(--accent); }
   .mandala-cell.center { background:var(--n800); color:#fff; font-weight:700; }
   .mandala-cell.center-block { background:var(--blue-lt); font-weight:600; border-color:var(--accent); }
   .mandala-cell.editing { border-color:var(--accent); background:var(--accent-lt); }
   .mandala-cell input {
-    width:100%; border:none; background:transparent; font-size:11px;
+    width:100%; height:100%; border:none; background:transparent; font-size:10.5px;
     text-align:center; color:inherit; outline:none; font-family:var(--font);
   }
 `;
@@ -151,7 +153,7 @@ const COL_META: Record<string, { dot:string; progress:string }> = {
   done:       { dot:"#16a34a", progress:"#16a34a" },
   check:      { dot:"#7c3aed", progress:"#7c3aed" },
   carry:      { dot:"#ea580c", progress:"#ea580c" },
-  done2:      { dot:"#16a34a", progress:"#16a34a" },
+  memo:       { dot:"#0891b2", progress:"#0891b2" },
 };
 
 const CAL_LABELS = [
@@ -174,7 +176,7 @@ const BOARDS_DEF = [
     cols:[
       { id:"check", ko:"확인"    },
       { id:"carry", ko:"챙길 것"  },
-      { id:"done2", ko:"루틴"    },
+      { id:"memo",  ko:"메모"    },
     ]},
 ];
 
@@ -497,19 +499,16 @@ function QuickAdd({onAdd,onCancel}:{onAdd:(t:string)=>void;onCancel:()=>void}) {
 // Board
 // ─────────────────────────────────────────────────────────────────────────────
 function Board({def,cards,collapsed,onToggleCollapse,onCardClick,onQuickAdd,onDrop,
-  onProgressChange,activeTagFilter,doneSearch,setDoneSearch,routineChecks,toggleRoutine}:{
+  activeTagFilter,doneSearch,setDoneSearch}:{
   def:typeof BOARDS_DEF[0]; cards:Card[]; collapsed:boolean;
   onToggleCollapse:()=>void;
   onCardClick:(c:Card)=>void; onQuickAdd:(colId:string,title:string,boardId:string)=>void;
   onDrop:(targetColId:string,afterCardId:string|null,boardId:string)=>void;
-  onProgressChange:(cardId:string,boardId:string,v:number)=>void;
   activeTagFilter:string|null; doneSearch:string; setDoneSearch:(s:string)=>void;
-  routineChecks:Record<string,boolean>; toggleRoutine:(id:string)=>void;
 }) {
   const [dragOverCol,setDragOverCol]=useState<string|null>(null);
   const [dragOverCard,setDragOverCard]=useState<string|null>(null);
   const [quickAddCol,setQuickAddCol]=useState<string|null>(null);
-  const isRoutineCol=(colId:string)=>def.id==="personal"&&colId==="done2";
 
   const getCards=(colId:string)=>{
     let f=cards.filter(c=>c.colId===colId);
@@ -555,7 +554,6 @@ function Board({def,cards,collapsed,onToggleCollapse,onCardClick,onQuickAdd,onDr
           {def.cols.map(col=>{
             const colCards=getCards(col.id);
             const meta=COL_META[col.id];
-            const isRoutine=isRoutineCol(col.id);
             const isDone=def.id==="work"&&col.id==="done";
             const isOver=dragOverCol===col.id;
             return (
@@ -595,8 +593,8 @@ function Board({def,cards,collapsed,onToggleCollapse,onCardClick,onQuickAdd,onDr
                   const isDue=card.dueDate&&card.dueDate<today;
                   const isDueToday=card.dueDate===today;
                   const label=CAL_LABELS.find(l=>l.id===card.labelId);
-                  const isChecked=isRoutine&&routineChecks[card.id];
                   const prog=card.progress??0;
+                  const progColor=prog>=100?"#16a34a":prog>=50?"#3b82f6":"#6366f1";
                   return (
                     <div key={card.id}
                       className={`kcard${gDrag.cardId===card.id?" dragging":""}${dragOverCard===card.id?" drag-over":""}`}
@@ -604,35 +602,32 @@ function Board({def,cards,collapsed,onToggleCollapse,onCardClick,onQuickAdd,onDr
                       onDragStart={e=>onDragStart(e,card)} onDragEnd={onDragEnd}
                       onDragOver={e=>onDragOver(e,col.id,card.id)} onDrop={e=>onDropH(e,col.id,card.id)}
                       onClick={()=>onCardClick(card)}
-                      style={{opacity:isChecked?.45:1}}>
+                      style={{position:"relative",overflow:"hidden"}}>
+                      {/* Progress top bar (background track + colored fill) */}
+                      {prog>0&&(
+                        <>
+                          <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:"var(--border-lt)"}}/>
+                          <div style={{position:"absolute",top:0,left:0,width:`${prog}%`,height:3,
+                            background:progColor,transition:"width .3s ease",
+                            borderTopLeftRadius:5,borderTopRightRadius:prog>=100?5:0}}/>
+                        </>
+                      )}
+                      {/* Label color stripe (below progress bar) */}
                       {label&&(
                         <div style={{height:2.5,borderRadius:2,background:label.color,
-                          margin:"-8px -10px 7px",borderTopLeftRadius:5,borderTopRightRadius:5}}/>
+                          margin:`${prog>0?3:-8}px -10px 7px`,borderTopLeftRadius:5,borderTopRightRadius:5}}/>
                       )}
                       <div style={{display:"flex",alignItems:"flex-start",gap:6}}>
-                        {isRoutine&&(
-                          <input type="checkbox" checked={!!isChecked}
-                            onChange={e=>{e.stopPropagation();toggleRoutine(card.id);}}
-                            onClick={e=>e.stopPropagation()}
-                            style={{marginTop:2,flexShrink:0,cursor:"pointer",accentColor:"var(--accent)"}}/>
-                        )}
                         <span style={{flex:1,fontSize:12.5,color:"var(--text)",lineHeight:1.45,
-                          textDecoration:isChecked?"line-through":"none",wordBreak:"break-word",
-                          fontWeight:isChecked?400:500}}>
+                          wordBreak:"break-word",fontWeight:500}}>
                           {card.title}
                         </span>
-                        {prog>0&&!isRoutine&&(
+                        {prog>0&&(
                           <span style={{fontSize:9.5,fontWeight:700,
                             color:prog>=100?"var(--green)":prog>=50?"var(--blue)":"var(--text-light)",
                             flexShrink:0,marginTop:1}}>{prog}%</span>
                         )}
                       </div>
-                      {/* Progress bar on card (if > 0) */}
-                      {prog>0&&!isRoutine&&(
-                        <div onClick={e=>e.stopPropagation()} style={{marginTop:6}}>
-                          <CardProgressBar value={prog} onChange={v=>onProgressChange(card.id,def.id,v)}/>
-                        </div>
-                      )}
                       {card.dueDate&&(
                         <div style={{marginTop:4,fontSize:10,
                           color:isDue?"var(--red)":isDueToday?"var(--orange)":"var(--text-light)",
@@ -764,10 +759,6 @@ function MandalaView() {
 
   return (
     <div>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-        <span style={{fontSize:11,fontWeight:600,color:"var(--text-sub)",letterSpacing:"0.05em",textTransform:"uppercase"}}>만다라트</span>
-        <span style={{fontSize:10,color:"var(--text-light)"}}>— 중앙 목표를 중심으로 8×8 세부 목표 설정</span>
-      </div>
       <div className="mandala-grid" style={{maxWidth:660}}>
         {BLOCK_POSITIONS.map(([br,bc])=>renderBlock(br,bc))}
       </div>
@@ -788,17 +779,26 @@ export default function App() {
   const [editCard,setEditCard] = useState<Card|null>(null);
   const [editBoardId,setEditBoardId] = useState("work");
   const [showPanel,setShowPanel] = useState(false);
-  const [routineChecks,setRoutineChecks] = useState<Record<string,boolean>>({});
   const [doneSearch,setDoneSearch] = useState("");
   const [activeTagFilter,setActiveTagFilter] = useState<string|null>(null);
   const [collapsedBoards,setCollapsedBoards] = useState<Record<string,boolean>>(()=>{
     try { return JSON.parse(localStorage.getItem("board_collapsed")||"{}"); } catch { return {}; }
+  });
+  const [collapsedMandala,setCollapsedMandala] = useState<boolean>(()=>{
+    try { return JSON.parse(localStorage.getItem("mandala_collapsed")||"false"); } catch { return false; }
   });
 
   const toggleBoardCollapse=(id:string)=>{
     setCollapsedBoards(prev=>{
       const next={...prev,[id]:!prev[id]};
       localStorage.setItem("board_collapsed",JSON.stringify(next));
+      return next;
+    });
+  };
+  const toggleMandalaCollapse=()=>{
+    setCollapsedMandala(prev=>{
+      const next=!prev;
+      localStorage.setItem("mandala_collapsed",JSON.stringify(next));
       return next;
     });
   };
@@ -819,15 +819,6 @@ export default function App() {
   },[]);
 
   useEffect(()=>{
-    const saved=JSON.parse(localStorage.getItem("routine_checks")||"{}");
-    const today=new Date().toISOString().slice(0,10);
-    if(saved._date!==today){
-      localStorage.setItem("routine_checks",JSON.stringify({_date:today}));
-      setRoutineChecks({});
-    } else {
-      const{_date:_,...rest}=saved;
-      setRoutineChecks(rest);
-    }
     Promise.all([
       apiFetch("GET","work").catch(()=>({cards:[]})),
       apiFetch("GET","personal").catch(()=>({cards:[]})),
@@ -840,24 +831,14 @@ export default function App() {
     });
   },[]);
 
-  const toggleRoutine=useCallback((cardId:string)=>{
-    setRoutineChecks(prev=>{
-      const next={...prev,[cardId]:!prev[cardId]};
-      const today=new Date().toISOString().slice(0,10);
-      localStorage.setItem("routine_checks",JSON.stringify({...next,_date:today}));
-      return next;
-    });
-  },[]);
-
   const handleProgressChange=useCallback(async(cardId:string,boardId:string,v:number)=>{
     setBoards(prev=>{
       const updated=prev[boardId].map(c=>c.id===cardId?{...c,progress:v}:c);
+      const card=updated.find(c=>c.id===cardId);
+      if(card) apiFetch("PUT",boardId,card,cardId).catch(()=>{});
       return{...prev,[boardId]:updated};
     });
-    // Debounced save — we save on mouseup already, this is just state sync
-    const card=boards[boardId].find(c=>c.id===cardId);
-    if(card) apiFetch("PUT",boardId,{...card,progress:v},cardId).catch(()=>{});
-  },[boards]);
+  },[]);
 
   const allTags=Array.from(new Set(Object.values(boards).flat().flatMap(c=>c.tags||[]))).sort();
   const allCards=Object.values(boards).flat();
@@ -1021,16 +1002,29 @@ export default function App() {
                     onCardClick={c=>openCard(c,def.id)}
                     onQuickAdd={handleQuickAdd}
                     onDrop={handleDrop}
-                    onProgressChange={handleProgressChange}
                     activeTagFilter={activeTagFilter}
-                    doneSearch={doneSearch} setDoneSearch={setDoneSearch}
-                    routineChecks={routineChecks} toggleRoutine={toggleRoutine}/>
+                    doneSearch={doneSearch} setDoneSearch={setDoneSearch}/>
                 ))}
-                {/* Divider */}
-                <div style={{height:1,background:"var(--border-lt)",margin:"2px 0"}}/>
-                {/* Mandala */}
-                <MandalaView/>
-                <div style={{height:20}}/>
+                {/* Mandala section — hidden when personal board is collapsed */}
+                {!collapsedBoards["personal"]&&(
+                  <>
+                    <div style={{height:1,background:"var(--border-lt)",margin:"2px 0"}}/>
+                    {/* Mandala header with its own collapse toggle */}
+                    <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",userSelect:"none"}}
+                      onClick={toggleMandalaCollapse}>
+                      <button style={{
+                        width:18,height:18,borderRadius:4,border:"1px solid var(--border)",
+                        display:"flex",alignItems:"center",justifyContent:"center",
+                        background:"var(--surface)",fontSize:10,color:"var(--text-sub)",
+                        transform:collapsedMandala?"rotate(-90deg)":"rotate(0deg)",transition:"transform .15s",flexShrink:0,
+                      }}>▾</button>
+                      <span style={{fontSize:11,fontWeight:600,color:"var(--text-sub)",letterSpacing:"0.05em",textTransform:"uppercase"}}>만다라트</span>
+                      <span style={{fontSize:10,color:"var(--text-light)"}}>— 중앙 목표를 중심으로 8×8 세부 목표 설정</span>
+                    </div>
+                    {!collapsedMandala&&<MandalaView/>}
+                    <div style={{height:20}}/>
+                  </>
+                )}
               </>
           }
         </div>
