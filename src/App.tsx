@@ -1,24 +1,100 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
-const FONT = "'Nanum Gothic', 'Apple SD Gothic Neo', sans-serif";
-const iStyle: any = { width:"100%", fontSize:13, padding:"7px 10px", borderRadius:6, border:"1px solid #EFEFEF", outline:"none", boxSizing:"border-box", fontFamily:FONT, background:"#fff", color:"#333" };
-const lStyle: any = { fontSize:10, color:"#AAA", display:"block", marginBottom:4, fontWeight:700, letterSpacing:0.5, textTransform:"uppercase" };
+// ── Apple Design Tokens ──────────────────────────────────────────────
+const FONT = "-apple-system, 'SF Pro Display', 'SF Pro Text', 'Nanum Gothic', 'Apple SD Gothic Neo', BlinkMacSystemFont, sans-serif";
 
+// Liquid Glass CSS Variables injected globally
+const APPLE_STYLE = `
+  @import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700&display=swap');
+
+  :root {
+    --glass-bg: rgba(255,255,255,0.52);
+    --glass-bg-dark: rgba(30,30,32,0.72);
+    --glass-blur: blur(21.8px);
+    --glass-shadow: 0 2px 12px rgba(0,0,0,0.10), 0 0 0 0.5px rgba(0,0,0,0.06);
+    --glass-border: rgba(255,255,255,0.72);
+    --glass-hover: rgba(255,255,255,0.72);
+    --col-radius: 12px;
+    --card-radius: 8px;
+    --color-label: rgba(100,100,100,0.55);
+    --color-text: #1C1C1E;
+    --color-secondary: #636366;
+    --color-tertiary: #AEAEB2;
+    --color-separator: rgba(60,60,67,0.12);
+    --color-fill: rgba(120,120,128,0.08);
+    --color-fill2: rgba(120,120,128,0.14);
+    --surface-bg: rgba(242,242,247,1);
+  }
+
+  * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+  body { background: var(--surface-bg); margin: 0; }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --glass-bg: rgba(28,28,30,0.72);
+      --glass-border: rgba(255,255,255,0.10);
+      --glass-hover: rgba(255,255,255,0.06);
+      --glass-shadow: 0 2px 12px rgba(0,0,0,0.30), 0 0 0 0.5px rgba(255,255,255,0.08);
+      --color-text: #F2F2F7;
+      --color-secondary: #AEAEB2;
+      --color-tertiary: #636366;
+      --color-separator: rgba(255,255,255,0.10);
+      --color-fill: rgba(120,120,128,0.14);
+      --color-fill2: rgba(120,120,128,0.20);
+      --surface-bg: rgba(0,0,0,1);
+    }
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar { width: 3px; height: 3px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 3px; }
+
+  /* Card hover effect */
+  .kcard { transition: box-shadow 0.15s, transform 0.12s; }
+  .kcard:hover { box-shadow: 0 4px 18px rgba(0,0,0,0.13), 0 0 0 0.5px rgba(0,0,0,0.07); transform: translateY(-1px); }
+
+  /* Column hover */
+  .kcol-add { transition: background 0.15s, opacity 0.15s; }
+  .kcol-add:hover { opacity: 0.85; }
+
+  @media (max-width: 767px) {
+    :root {
+      --col-radius: 10px;
+      --card-radius: 7px;
+    }
+  }
+`;
+
+const iStyle: any = {
+  width:"100%", fontSize:13, padding:"7px 10px",
+  borderRadius:8, border:"1px solid var(--color-separator)",
+  outline:"none", boxSizing:"border-box", fontFamily:FONT,
+  background:"var(--color-fill)", color:"var(--color-text)",
+  backdropFilter: "blur(8px)",
+  WebkitBackdropFilter: "blur(8px)",
+};
+const lStyle: any = {
+  fontSize:10, color:"var(--color-tertiary)", display:"block",
+  marginBottom:3, fontWeight:600, letterSpacing:0.3, textTransform:"uppercase",
+};
+
+// ── Column color tokens (Apple palette) ─────────────────────────────
 const COL_COLORS: any = {
-  todo:       { bg:"#EEF4FF", bar:"#93B4F5" },
-  inprogress: { bg:"#FFF0F0", bar:"#F5A0A0" },
-  done:       { bg:"#F4F4F4", bar:"#BBBBBB" },
-  check:      { bg:"#F0FFF4", bar:"#86EFAC" },
-  carry:      { bg:"#FFF8EC", bar:"#FCD080" },
-  done2:      { bg:"#F5F0FF", bar:"#C4AAFA" },
+  todo:       { bg:"rgba(0,122,255,0.07)",   bar:"rgba(0,122,255,0.55)" },
+  inprogress: { bg:"rgba(255,59,48,0.06)",   bar:"rgba(255,59,48,0.50)" },
+  done:       { bg:"rgba(142,142,147,0.08)", bar:"rgba(142,142,147,0.40)" },
+  check:      { bg:"rgba(52,199,89,0.07)",   bar:"rgba(52,199,89,0.55)" },
+  carry:      { bg:"rgba(255,149,0,0.07)",   bar:"rgba(255,149,0,0.55)" },
+  done2:      { bg:"rgba(175,82,222,0.07)",  bar:"rgba(175,82,222,0.55)" },
 };
 
 const CAL_LABELS = [
-  { id:"family",   ko:"가족",   color:"#E74C3C", text:"#fff" },
-  { id:"junseok",  ko:"준석",   color:"#555F6E", text:"#fff" },
-  { id:"default",  ko:"기본",   color:"#F5C518", text:"#333" },
-  { id:"business", ko:"대상업무", color:"#2980B9", text:"#fff" },
-  { id:"noupdate", ko:"미분류",  color:"#1A1A1A", text:"#fff" },
+  { id:"family",   ko:"가족",   color:"#FF3B30", text:"#fff" },
+  { id:"junseok",  ko:"준석",   color:"#48484A", text:"#fff" },
+  { id:"default",  ko:"기본",   color:"#FF9500", text:"#fff" },
+  { id:"business", ko:"대상업무", color:"#007AFF", text:"#fff" },
+  { id:"noupdate", ko:"미분류",  color:"#1C1C1E", text:"#fff" },
 ];
 const PERSONAL_LABELS = ["family","default","noupdate"];
 const getLbl = (id: string) => CAL_LABELS.find(l => l.id === id) || CAL_LABELS[2];
@@ -34,7 +110,7 @@ const HOLIDAYS: any = {
 const isHoliday = (m: number, d: number) =>
   HOLIDAYS[`${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`] || null;
 
-// 루틴 유틸
+// ── Routine utils ───────────────────────────────────────────────────
 const isRoutineCol = (boardId: string, colId: string) =>
   boardId === "personal" && colId === "done2";
 
@@ -79,14 +155,15 @@ function getMissedDays(cardId: string): number {
   return missed;
 }
 function getRoutineStyle(cardId: string, checkedToday: boolean): any {
-  if (checkedToday) return { bg:"#F0FFF4", border:"#27AE60" };
+  if (checkedToday) return { bg:"rgba(52,199,89,0.10)", border:"rgba(52,199,89,0.55)" };
   const missed = getMissedDays(cardId);
-  if (missed >= 7) return { bg:"#FFE0E0", border:"#C0392B" };
-  if (missed >= 5) return { bg:"#FFEBE8", border:"#E74C3C" };
-  if (missed >= 3) return { bg:"#FFF0EE", border:"#F5A0A0" };
-  return { bg:"#fff", border:"#E8E8E8" };
+  if (missed >= 7) return { bg:"rgba(255,59,48,0.10)", border:"rgba(255,59,48,0.60)" };
+  if (missed >= 5) return { bg:"rgba(255,59,48,0.07)", border:"rgba(255,59,48,0.40)" };
+  if (missed >= 3) return { bg:"rgba(255,149,0,0.07)", border:"rgba(255,149,0,0.45)" };
+  return { bg:"transparent", border:"var(--color-separator)" };
 }
 
+// ── Board definition ────────────────────────────────────────────────
 const BOARDS_DEF = [
   { id:"work", title:"업무 칸반보드", titleEn:"WORK BOARD",
     cols:[
@@ -129,6 +206,7 @@ function useIsMobile() {
 
 const gDrag: any = { cardId:null, boardId:null, card:null };
 
+// ── Date Slider ─────────────────────────────────────────────────────
 function DateSlider({ value, onChange }: any) {
   const today = new Date();
   const days = Array.from({length:60},(_,i)=>{ const d=new Date(today); d.setDate(today.getDate()+i); return d; });
@@ -153,85 +231,100 @@ function DateSlider({ value, onChange }: any) {
     <div>
       <div ref={slRef} onMouseDown={onMD} onMouseMove={onMM} onMouseUp={onMU} onMouseLeave={onMU}
         style={{ overflowX:"scroll", WebkitOverflowScrolling:"touch", cursor:"grab", userSelect:"none" } as any}>
-        <div style={{ display:"flex", gap:6, padding:"4px 2px 6px", width:"max-content" }}>
+        <div style={{ display:"flex", gap:4, padding:"3px 1px 5px", width:"max-content" }}>
           {days.map((d,i)=>{
             const str=fmt(d),isSel=value===str,isT=i===0,dow=d.getDay();
             return (
               <div key={str} onClick={()=>{ if(!dg.current.moved) onChange(isSel?"":str); }}
-                style={{ width:40,height:52,borderRadius:10,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2,cursor:"grab",flexShrink:0,
-                  background:isSel?"#111":isT?"#F5F5F5":"#fff", border:isSel?"none":isT?"1px solid #DDD":"1px solid #EFEFEF" }}>
-                <span style={{ fontSize:9,fontWeight:600,color:isSel?"rgba(255,255,255,0.6)":dow===0?"#E74C3C":dow===6?"#2980B9":"#BBB" }}>{dayNames[dow]}</span>
-                <span style={{ fontSize:15,fontWeight:700,lineHeight:1,color:isSel?"#fff":isT?"#111":dow===0?"#E74C3C":dow===6?"#2980B9":"#333" }}>{d.getDate()}</span>
-                {isT&&!isSel&&<span style={{ width:4,height:4,borderRadius:"50%",background:"#111" }}/>}
+                style={{ width:36,height:46,borderRadius:9,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,cursor:"pointer",flexShrink:0,
+                  background:isSel?"#1C1C1E":isT?"var(--color-fill2)":"var(--color-fill)",
+                  border:isSel?"none":isT?"1px solid var(--color-separator)":"1px solid transparent",
+                  backdropFilter:"blur(8px)", WebkitBackdropFilter:"blur(8px)" }}>
+                <span style={{ fontSize:8,fontWeight:600,color:isSel?"rgba(255,255,255,0.55)":dow===0?"#FF3B30":dow===6?"#007AFF":"var(--color-tertiary)" }}>{dayNames[dow]}</span>
+                <span style={{ fontSize:14,fontWeight:700,lineHeight:1,color:isSel?"#fff":isT?"var(--color-text)":dow===0?"#FF3B30":dow===6?"#007AFF":"var(--color-text)" }}>{d.getDate()}</span>
+                {isT&&!isSel&&<span style={{ width:3,height:3,borderRadius:"50%",background:"var(--color-text)" }}/>}
               </div>
             );
           })}
         </div>
       </div>
-      <div style={{ height:3,borderRadius:2,background:"#F0F0F0",marginBottom:6,overflow:"hidden" }}>
-        <div ref={barRef} style={{ height:"100%",borderRadius:2,background:"#CCC" }}/>
+      <div style={{ height:2,borderRadius:2,background:"var(--color-fill2)",marginBottom:5,overflow:"hidden" }}>
+        <div ref={barRef} style={{ height:"100%",borderRadius:2,background:"var(--color-tertiary)" }}/>
       </div>
       <input value={value||""} onChange={(e: any)=>onChange(e.target.value)} onBlur={(e: any)=>onChange(parseDate(e.target.value))}
         placeholder="직접 입력 (예) 0530 / 5/30" style={{ ...iStyle,fontSize:12 }}/>
-      {value&&<div style={{ fontSize:11,color:"#888",marginTop:4,display:"flex",justifyContent:"space-between" }}>
+      {value&&<div style={{ fontSize:11,color:"var(--color-secondary)",marginTop:3,display:"flex",justifyContent:"space-between" }}>
         <span>선택: {value}</span>
-        <button onClick={()=>onChange("")} style={{ background:"none",border:"none",fontSize:11,color:"#CCC",cursor:"pointer",padding:0 }}>지우기</button>
+        <button onClick={()=>onChange("")} style={{ background:"none",border:"none",fontSize:11,color:"var(--color-tertiary)",cursor:"pointer",padding:0 }}>지우기</button>
       </div>}
     </div>
   );
 }
 
+// ── Side Panel (Apple Sheet style) ─────────────────────────────────
 function SidePanel({ form, setForm, cols, mode, onSave, onDelete, onClose, isMobile }: any) {
   const lbl = getLbl(form.labelId);
+  const panelBase: any = {
+    background: "var(--glass-bg)",
+    backdropFilter: "var(--glass-blur)",
+    WebkitBackdropFilter: "var(--glass-blur)",
+    zIndex: 500,
+    display: "flex",
+    flexDirection: "column",
+  };
   return (
     <div style={isMobile
-      ? { position:"fixed",left:0,right:0,bottom:0,maxHeight:"90vh",background:"#fff",borderTop:"1px solid #E0E0E0",borderRadius:"16px 16px 0 0",boxShadow:"0 -4px 24px rgba(0,0,0,0.12)",zIndex:500,display:"flex",flexDirection:"column" } as any
-      : { position:"fixed",top:0,right:0,bottom:0,width:292,background:"#fff",borderLeft:"1px solid #EBEBEB",boxShadow:"-6px 0 24px rgba(0,0,0,0.07)",zIndex:500,display:"flex",flexDirection:"column" } as any}>
-      {isMobile&&<div style={{ width:40,height:4,borderRadius:2,background:"#E0E0E0",margin:"12px auto 0" }}/>}
-      <div style={{ padding:"13px 16px 12px",borderBottom:"1px solid #F2F2F2",display:"flex",alignItems:"center",gap:8 }}>
-        <div style={{ width:8,height:8,borderRadius:"50%",background:lbl.color }}/>
-        <span style={{ fontSize:12,fontWeight:700,color:"#111",flex:1 }}>{mode==="add"?"새 카드 추가":"카드 편집"}</span>
-        <button onClick={onClose} style={{ background:"none",border:"none",fontSize:18,color:"#CCC",cursor:"pointer",padding:0 }}>✕</button>
+      ? { ...panelBase, position:"fixed",left:0,right:0,bottom:0,maxHeight:"90vh",borderTop:"0.5px solid var(--glass-border)",borderRadius:"16px 16px 0 0",boxShadow:"0 -8px 32px rgba(0,0,0,0.18)" } as any
+      : { ...panelBase, position:"fixed",top:0,right:0,bottom:0,width:280,borderLeft:"0.5px solid var(--glass-border)",boxShadow:"-8px 0 32px rgba(0,0,0,0.10)" } as any}>
+      {isMobile&&<div style={{ width:36,height:4,borderRadius:2,background:"var(--color-separator)",margin:"10px auto 0" }}/>}
+      <div style={{ padding:"11px 14px 10px",borderBottom:"0.5px solid var(--color-separator)",display:"flex",alignItems:"center",gap:7 }}>
+        <div style={{ width:7,height:7,borderRadius:"50%",background:lbl.color }}/>
+        <span style={{ fontSize:12,fontWeight:700,color:"var(--color-text)",flex:1,letterSpacing:-0.2 }}>{mode==="add"?"새 카드 추가":"카드 편집"}</span>
+        <button onClick={onClose} style={{ background:"none",border:"none",fontSize:16,color:"var(--color-tertiary)",cursor:"pointer",padding:0,lineHeight:1 }}>✕</button>
       </div>
-      <div style={{ flex:1,overflowY:"auto",padding:"14px 16px",display:"flex",flexDirection:"column",gap:12 }}>
+      <div style={{ flex:1,overflowY:"auto",padding:"12px 14px",display:"flex",flexDirection:"column",gap:10 }}>
         <div><label style={lStyle}>캘린더 분류</label>
-          <div style={{ display:"flex",flexWrap:"wrap",gap:5 }}>
+          <div style={{ display:"flex",flexWrap:"wrap",gap:4 }}>
             {CAL_LABELS.map(l=>(
               <button key={l.id} onClick={()=>setForm((f: any)=>({...f,labelId:l.id}))}
-                style={{ fontSize:isMobile?12:10,padding:isMobile?"6px 12px":"3px 9px",borderRadius:16,cursor:"pointer",fontFamily:FONT,fontWeight:700,
-                  background:form.labelId===l.id?l.color:"#F5F5F5",color:form.labelId===l.id?l.text:"#999",
+                style={{ fontSize:isMobile?11:10,padding:isMobile?"5px 10px":"2px 8px",borderRadius:14,cursor:"pointer",fontFamily:FONT,fontWeight:700,transition:"all 0.12s",
+                  background:form.labelId===l.id?l.color:"var(--color-fill)",
+                  color:form.labelId===l.id?l.text:"var(--color-secondary)",
                   border:form.labelId===l.id?`1.5px solid ${l.color}`:"1.5px solid transparent" }}>{l.ko}</button>
             ))}
           </div>
         </div>
         <div><label style={lStyle}>상태</label>
-          <div style={{ display:"flex",gap:5,flexWrap:"wrap" }}>
+          <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>
             {cols.map((c: any)=>(
               <button key={c.id} onClick={()=>setForm((f: any)=>({...f,colId:c.id}))}
-                style={{ fontSize:isMobile?12:11,padding:isMobile?"6px 14px":"4px 11px",borderRadius:5,cursor:"pointer",fontFamily:FONT,
-                  background:form.colId===c.id?"#111":"#F5F5F5",color:form.colId===c.id?"#fff":"#888",border:"none",fontWeight:form.colId===c.id?700:400 }}>{c.ko}</button>
+                style={{ fontSize:isMobile?11:10,padding:isMobile?"5px 12px":"3px 9px",borderRadius:5,cursor:"pointer",fontFamily:FONT,transition:"all 0.12s",
+                  background:form.colId===c.id?"var(--color-text)":"var(--color-fill)",
+                  color:form.colId===c.id?"var(--surface-bg)":"var(--color-secondary)",
+                  border:"none",fontWeight:form.colId===c.id?700:400 }}>{c.ko}</button>
             ))}
           </div>
         </div>
         <div><label style={lStyle}>제목</label>
-          <input value={form.title} onChange={(e: any)=>setForm((f: any)=>({...f,title:e.target.value}))} placeholder="카드 제목" autoFocus style={{ ...iStyle,fontSize:isMobile?15:13 }}/>
+          <input value={form.title} onChange={(e: any)=>setForm((f: any)=>({...f,title:e.target.value}))} placeholder="카드 제목" autoFocus style={{ ...iStyle,fontSize:isMobile?14:13 }}/>
         </div>
         <div><label style={lStyle}>메모</label>
-          <textarea value={form.note} onChange={(e: any)=>setForm((f: any)=>({...f,note:e.target.value}))} placeholder="메모 (선택)" rows={3} style={{ ...iStyle,resize:"vertical",lineHeight:1.55,fontSize:isMobile?14:13 }}/>
+          <textarea value={form.note} onChange={(e: any)=>setForm((f: any)=>({...f,note:e.target.value}))} placeholder="메모 (선택)" rows={3} style={{ ...iStyle,resize:"vertical",lineHeight:1.55,fontSize:isMobile?13:12 }}/>
         </div>
         <div><label style={lStyle}>마감일</label>
           <DateSlider value={form.dueDate} onChange={(v: string)=>setForm((f: any)=>({...f,dueDate:v}))}/>
         </div>
       </div>
-      <div style={{ padding:"11px 16px",borderTop:"1px solid #F2F2F2",display:"flex",gap:7,paddingBottom:isMobile?"24px":"11px" }}>
-        <button onClick={onSave} style={{ flex:1,padding:isMobile?"12px 0":"8px 0",borderRadius:8,border:"none",background:"#111",color:"#fff",fontWeight:700,fontSize:isMobile?15:13,cursor:"pointer",fontFamily:FONT }}>저장</button>
-        <button onClick={onClose} style={{ padding:isMobile?"12px 16px":"8px 12px",borderRadius:8,border:"1px solid #EFEFEF",background:"#fff",color:"#AAA",fontSize:isMobile?14:13,cursor:"pointer",fontFamily:FONT }}>취소</button>
-        {mode==="edit"&&<button onClick={onDelete} style={{ padding:isMobile?"12px 16px":"8px 14px",borderRadius:8,border:"none",background:"#FFF0EE",color:"#D04040",fontSize:isMobile?13:12,fontWeight:700,cursor:"pointer",fontFamily:FONT }}>삭제</button>}
+      <div style={{ padding:"9px 14px",borderTop:"0.5px solid var(--color-separator)",display:"flex",gap:6,paddingBottom:isMobile?"22px":"9px" }}>
+        <button onClick={onSave} style={{ flex:1,padding:isMobile?"11px 0":"7px 0",borderRadius:9,border:"none",background:"var(--color-text)",color:"var(--surface-bg)",fontWeight:700,fontSize:isMobile?14:12,cursor:"pointer",fontFamily:FONT,letterSpacing:-0.2 }}>저장</button>
+        <button onClick={onClose} style={{ padding:isMobile?"11px 14px":"7px 10px",borderRadius:9,border:"0.5px solid var(--color-separator)",background:"var(--color-fill)",color:"var(--color-secondary)",fontSize:isMobile?13:12,cursor:"pointer",fontFamily:FONT }}>취소</button>
+        {mode==="edit"&&<button onClick={onDelete} style={{ padding:isMobile?"11px 14px":"7px 12px",borderRadius:9,border:"none",background:"rgba(255,59,48,0.10)",color:"#FF3B30",fontSize:isMobile?12:11,fontWeight:700,cursor:"pointer",fontFamily:FONT }}>삭제</button>}
       </div>
     </div>
   );
 }
 
+// ── Mini Calendar ────────────────────────────────────────────────────
 function MiniCalendar({ allCards, onDateClick }: any) {
   const today=new Date();
   const [vy,setVy]=useState(today.getFullYear());
@@ -244,17 +337,17 @@ function MiniCalendar({ allCards, onDateClick }: any) {
   const mn=["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
   const dn=["일","월","화","수","목","금","토"];
   return (
-    <div style={{ background:"#fff",border:"1px solid #EFEFEF",borderRadius:10,padding:"14px 14px 12px",fontFamily:FONT }}>
-      <div style={{ display:"flex",alignItems:"center",marginBottom:12 }}>
-        <button onClick={()=>{if(vm===0){setVm(11);setVy((y: number)=>y-1);}else setVm((m: number)=>m-1);}} style={{ background:"none",border:"none",cursor:"pointer",color:"#AAA",fontSize:16,padding:"0 8px" }}>‹</button>
-        <span style={{ flex:1,textAlign:"center",fontSize:13,fontWeight:700,color:"#111" }}>{vy}년 {mn[vm]}</span>
-        <button onClick={()=>{if(vm===11){setVm(0);setVy((y: number)=>y+1);}else setVm((m: number)=>m+1);}} style={{ background:"none",border:"none",cursor:"pointer",color:"#AAA",fontSize:16,padding:"0 8px" }}>›</button>
+    <div style={{ background:"var(--glass-bg)",backdropFilter:"var(--glass-blur)",WebkitBackdropFilter:"var(--glass-blur)",border:"0.5px solid var(--glass-border)",borderRadius:12,padding:"11px 11px 9px",fontFamily:FONT,boxShadow:"var(--glass-shadow)" }}>
+      <div style={{ display:"flex",alignItems:"center",marginBottom:9 }}>
+        <button onClick={()=>{if(vm===0){setVm(11);setVy((y: number)=>y-1);}else setVm((m: number)=>m-1);}} style={{ background:"none",border:"none",cursor:"pointer",color:"var(--color-tertiary)",fontSize:15,padding:"0 6px",lineHeight:1 }}>‹</button>
+        <span style={{ flex:1,textAlign:"center",fontSize:12,fontWeight:700,color:"var(--color-text)",letterSpacing:-0.3 }}>{vy}년 {mn[vm]}</span>
+        <button onClick={()=>{if(vm===11){setVm(0);setVy((y: number)=>y+1);}else setVm((m: number)=>m+1);}} style={{ background:"none",border:"none",cursor:"pointer",color:"var(--color-tertiary)",fontSize:15,padding:"0 6px",lineHeight:1 }}>›</button>
       </div>
-      <div style={{ display:"grid",gridTemplateColumns:"repeat(7,1fr)",marginBottom:4 }}>
-        {dn.map((d,i)=><div key={d} style={{ textAlign:"center",fontSize:10,fontWeight:700,color:i===0?"#E74C3C":i===6?"#2980B9":"#BBB",padding:"2px 0" }}>{d}</div>)}
+      <div style={{ display:"grid",gridTemplateColumns:"repeat(7,1fr)",marginBottom:2 }}>
+        {dn.map((d,i)=><div key={d} style={{ textAlign:"center",fontSize:9,fontWeight:600,color:i===0?"#FF3B30":i===6?"#007AFF":"var(--color-tertiary)",padding:"1px 0" }}>{d}</div>)}
       </div>
       {weeks.map((week,wi)=>(
-        <div key={wi} style={{ display:"grid",gridTemplateColumns:"repeat(7,1fr)",marginBottom:2 }}>
+        <div key={wi} style={{ display:"grid",gridTemplateColumns:"repeat(7,1fr)",marginBottom:1 }}>
           {week.map((d,di)=>{
             if(d<1||d>dim)return <div key={di}/>;
             const ds=`${vy}-${pad(vm+1)}-${pad(d)}`,dots=cbd[ds]||[],isT=d===today.getDate()&&vm===today.getMonth()&&vy===today.getFullYear();
@@ -262,24 +355,25 @@ function MiniCalendar({ allCards, onDateClick }: any) {
             const isRed=di===0||!!holiday;
             const isBlue=di===6&&!holiday;
             return (
-              <div key={di} onClick={()=>onDateClick(ds)} style={{ textAlign:"center",padding:"3px 1px",cursor:"pointer",borderRadius:6 }}
-                onMouseEnter={(e: any)=>e.currentTarget.style.background="#F5F5F5"}
+              <div key={di} onClick={()=>onDateClick(ds)} style={{ textAlign:"center",padding:"2px 1px",cursor:"pointer",borderRadius:5 }}
+                onMouseEnter={(e: any)=>e.currentTarget.style.background="var(--color-fill)"}
                 onMouseLeave={(e: any)=>e.currentTarget.style.background="transparent"}
                 title={holiday||""}>
-                <span style={{ fontSize:12,fontWeight:isT?700:400,color:isT?"#fff":isRed?"#E74C3C":isBlue?"#2980B9":"#333",background:isT?"#111":"transparent",borderRadius:"50%",width:22,height:22,display:"inline-flex",alignItems:"center",justifyContent:"center" }}>{d}</span>
-                {dots.length>0&&<div style={{ display:"flex",justifyContent:"center",gap:2,marginTop:1 }}>{dots.slice(0,3).map((c: any,i: number)=><div key={i} style={{ width:5,height:5,borderRadius:"50%",background:getLbl(c.labelId).color }}/>)}</div>}
+                <span style={{ fontSize:11,fontWeight:isT?700:400,color:isT?"#fff":isRed?"#FF3B30":isBlue?"#007AFF":"var(--color-text)",background:isT?"#1C1C1E":"transparent",borderRadius:"50%",width:20,height:20,display:"inline-flex",alignItems:"center",justifyContent:"center" }}>{d}</span>
+                {dots.length>0&&<div style={{ display:"flex",justifyContent:"center",gap:1,marginTop:1 }}>{dots.slice(0,3).map((c: any,i: number)=><div key={i} style={{ width:4,height:4,borderRadius:"50%",background:getLbl(c.labelId).color }}/>)}</div>}
               </div>
             );
           })}
         </div>
       ))}
-      <div style={{ borderTop:"1px solid #F5F5F5",marginTop:10,paddingTop:8,display:"flex",flexWrap:"wrap",gap:"6px 10px" }}>
-        {CAL_LABELS.map(l=><div key={l.id} style={{ display:"flex",alignItems:"center",gap:4 }}><div style={{ width:6,height:6,borderRadius:"50%",background:l.color }}/><span style={{ fontSize:10,color:"#AAA" }}>{l.ko}</span></div>)}
+      <div style={{ borderTop:"0.5px solid var(--color-separator)",marginTop:8,paddingTop:6,display:"flex",flexWrap:"wrap",gap:"4px 8px" }}>
+        {CAL_LABELS.map(l=><div key={l.id} style={{ display:"flex",alignItems:"center",gap:3 }}><div style={{ width:5,height:5,borderRadius:"50%",background:l.color }}/><span style={{ fontSize:9,color:"var(--color-tertiary)" }}>{l.ko}</span></div>)}
       </div>
     </div>
   );
 }
 
+// ── Board ────────────────────────────────────────────────────────────
 function Board({ boardDef, panelState, setPanelState, hidePersonal, allCardsRef, isMobile }: any) {
   const [cards, setCards] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -331,7 +425,7 @@ function Board({ boardDef, panelState, setPanelState, hidePersonal, allCardsRef,
     gDrag.cardId=card.id;gDrag.boardId=boardDef.id;gDrag.card=card;
     const t=e.touches[0];const el=e.currentTarget;
     const c=el.cloneNode(true) as HTMLElement;
-    c.style.cssText=`position:fixed;opacity:0.85;pointer-events:none;z-index:9999;width:${el.offsetWidth}px;left:${t.clientX-el.offsetWidth/2}px;top:${t.clientY-el.offsetHeight/2}px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.18);transform:scale(1.03);`;
+    c.style.cssText=`position:fixed;opacity:0.88;pointer-events:none;z-index:9999;width:${el.offsetWidth}px;left:${t.clientX-el.offsetWidth/2}px;top:${t.clientY-el.offsetHeight/2}px;border-radius:8px;box-shadow:0 12px 32px rgba(0,0,0,0.22);transform:scale(1.04);backdrop-filter:blur(21.8px);-webkit-backdrop-filter:blur(21.8px);`;
     document.body.appendChild(c);cloneRef.current=c;setTick((n: number)=>n+1);
   };
   const onTouchMove=(e: any)=>{
@@ -371,8 +465,10 @@ function Board({ boardDef, panelState, setPanelState, hidePersonal, allCardsRef,
     const checkedToday=isRoutine?isCheckedToday(card.id):false;
     const rs=isRoutine?getRoutineStyle(card.id,checkedToday):null;
     const missed=isRoutine?getMissedDays(card.id):0;
+
     return (
       <div key={card.id}
+        className="kcard"
         draggable
         onDragStart={(e: any)=>{e.dataTransfer.effectAllowed="move";gDrag.cardId=card.id;gDrag.boardId=boardDef.id;gDrag.card=card;setTick((n: number)=>n+1);}}
         onDragEnd={()=>{gDrag.cardId=null;gDrag.boardId=null;gDrag.card=null;setDragOverCol(null);setTick((n: number)=>n+1);}}
@@ -381,57 +477,65 @@ function Board({ boardDef, panelState, setPanelState, hidePersonal, allCardsRef,
         onTouchEnd={onTouchEnd}
         onClick={(e: any)=>{if((e.target as HTMLElement).closest('button'))return;if(!isRoutine)openEdit(card);}}
         style={{
-          background: isRoutine?(rs?.bg||"#fff"):"#fff",
-          border: `1px solid ${isRoutine?(rs?.border||"#E8E8E8"):"#E8E8E8"}`,
-          borderLeft: `3px solid ${isRoutine?(checkedToday?"#27AE60":rs?.border||"#C4AAFA"):lbl.color}`,
-          borderRadius:8,padding:"10px 12px",marginBottom:6,cursor:isRoutine?"default":"grab",opacity:isDragging?0.4:1,
-          position:"relative",boxShadow:"0 1px 3px rgba(0,0,0,0.05)",touchAction:"none",userSelect:"none"
+          background: isRoutine?(rs?.bg||"var(--glass-bg)"):"var(--glass-bg)",
+          backdropFilter: "var(--glass-blur)",
+          WebkitBackdropFilter: "var(--glass-blur)",
+          border: `0.5px solid ${isRoutine?(rs?.border||"var(--glass-border)"):"var(--glass-border)"}`,
+          borderLeft: `2.5px solid ${isRoutine?(checkedToday?"#34C759":rs?.border||"rgba(175,82,222,0.55)"):lbl.color}`,
+          borderRadius: "var(--card-radius)",
+          padding: "7px 9px",
+          marginBottom: 4,
+          cursor: isRoutine?"default":"grab",
+          opacity: isDragging?0.3:1,
+          position: "relative",
+          boxShadow: "var(--glass-shadow)",
+          touchAction: "none",
+          userSelect: "none",
         } as any}>
 
         {/* 삭제 버튼 */}
         <button onMouseDown={(e: any)=>e.stopPropagation()} onClick={(e: any)=>{e.stopPropagation();delCard(card.id);}}
-          style={{ position:"absolute",top:8,right:8,background:"none",border:"none",padding:"1px 4px",cursor:"pointer",fontSize:11,color:"#D8D8D8",lineHeight:1 }}
-          onMouseEnter={(e: any)=>e.currentTarget.style.color="#D04040"}
-          onMouseLeave={(e: any)=>e.currentTarget.style.color="#D8D8D8"}>✕</button>
+          style={{ position:"absolute",top:6,right:6,background:"none",border:"none",padding:"1px 3px",cursor:"pointer",fontSize:10,color:"rgba(0,0,0,0.15)",lineHeight:1 }}
+          onMouseEnter={(e: any)=>e.currentTarget.style.color="#FF3B30"}
+          onMouseLeave={(e: any)=>e.currentTarget.style.color="rgba(0,0,0,0.15)"}>✕</button>
 
         {isRoutine ? (
-          /* 루틴 카드 레이아웃 */
-          <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-            {/* 체크박스 */}
+          <div style={{ display:"flex",alignItems:"center",gap:8 }}>
             <button
               onMouseDown={(e: any)=>e.stopPropagation()}
               onClick={(e: any)=>{e.stopPropagation();toggleRoutineCheck(card.id);setTick((n: number)=>n+1);}}
               style={{
-                width:28,height:28,borderRadius:"50%",border:`2px solid ${checkedToday?"#27AE60":"#CCC"}`,
-                background:checkedToday?"#27AE60":"#fff",cursor:"pointer",flexShrink:0,
-                display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,
+                width:24,height:24,borderRadius:"50%",
+                border:`1.5px solid ${checkedToday?"#34C759":"var(--color-tertiary)"}`,
+                background:checkedToday?"#34C759":"transparent",
+                cursor:"pointer",flexShrink:0,
+                display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,
                 transition:"all 0.15s",color:"#fff"
               }}>
               {checkedToday?"✓":""}
             </button>
             <div style={{ flex:1,minWidth:0 }}>
-              <p style={{ margin:"0 0 2px",fontSize:12,fontWeight:600,color:checkedToday?"#888":"#1A1A1A",lineHeight:1.4,paddingRight:20,
+              <p style={{ margin:"0 0 1px",fontSize:12,fontWeight:600,color:checkedToday?"var(--color-secondary)":"var(--color-text)",lineHeight:1.35,paddingRight:18,
                 textDecoration:checkedToday?"line-through":"none" }}>{card.title}</p>
-              {card.note&&<p style={{ margin:0,fontSize:10,color:"#AAA",lineHeight:1.3 }}>{card.note}</p>}
-              <div style={{ display:"flex",alignItems:"center",gap:8,marginTop:4 }}>
+              {card.note&&<p style={{ margin:0,fontSize:10,color:"var(--color-tertiary)",lineHeight:1.3 }}>{card.note}</p>}
+              <div style={{ display:"flex",alignItems:"center",gap:6,marginTop:3 }}>
                 {checkedToday
-                  ? <span style={{ fontSize:10,color:"#27AE60",fontWeight:600 }}>오늘 완료 ✓</span>
+                  ? <span style={{ fontSize:9,color:"#34C759",fontWeight:600 }}>오늘 완료 ✓</span>
                   : missed>=3
-                    ? <span style={{ fontSize:10,fontWeight:700,color:missed>=7?"#C0392B":missed>=5?"#E74C3C":"#E67E22" }}>{missed}일째 미체크 🔥</span>
-                    : <span style={{ fontSize:10,color:"#BBB" }}>오늘 체크하세요</span>
+                    ? <span style={{ fontSize:9,fontWeight:700,color:missed>=7?"#FF3B30":missed>=5?"#FF453A":"#FF9500" }}>{missed}일째 미체크 🔥</span>
+                    : <span style={{ fontSize:9,color:"var(--color-tertiary)" }}>오늘 체크하세요</span>
                 }
               </div>
             </div>
           </div>
         ) : (
-          /* 일반 카드 레이아웃 */
           <>
-            <div style={{ display:"flex",alignItems:"center",gap:5,marginBottom:4 }}>
-              <span style={{ fontSize:9,padding:"1px 6px",borderRadius:8,background:lbl.color,color:lbl.text,fontWeight:700 }}>{lbl.ko}</span>
+            <div style={{ display:"flex",alignItems:"center",gap:4,marginBottom:3 }}>
+              <span style={{ fontSize:8,padding:"1px 5px",borderRadius:6,background:lbl.color,color:lbl.text,fontWeight:700,letterSpacing:0.2 }}>{lbl.ko}</span>
             </div>
-            <p style={{ margin:"0 0 2px",fontSize:12,fontWeight:600,color:"#1A1A1A",lineHeight:1.4,paddingRight:20 }}>{card.title}</p>
-            {card.note&&<p style={{ margin:0,fontSize:10,color:"#AAA",lineHeight:1.3 }}>{card.note}</p>}
-            {card.dueDate&&<span style={{ fontSize:10,color:"#BABABA",display:"flex",alignItems:"center",gap:3,marginTop:3 }}>⏰ {card.dueDate}</span>}
+            <p style={{ margin:"0 0 2px",fontSize:12,fontWeight:600,color:"var(--color-text)",lineHeight:1.35,paddingRight:18 }}>{card.title}</p>
+            {card.note&&<p style={{ margin:0,fontSize:10,color:"var(--color-secondary)",lineHeight:1.3 }}>{card.note}</p>}
+            {card.dueDate&&<span style={{ fontSize:9,color:"var(--color-tertiary)",display:"flex",alignItems:"center",gap:2,marginTop:3 }}>⏰ {card.dueDate}</span>}
           </>
         )}
       </div>
@@ -439,54 +543,70 @@ function Board({ boardDef, panelState, setPanelState, hidePersonal, allCardsRef,
   };
 
   return (
-    <div data-boardid={boardDef.id} style={{ marginBottom:28 }}>
-      <div style={{ display:"flex",alignItems:"baseline",gap:12,marginBottom:12,borderBottom:"1px solid #EBEBEB",paddingBottom:8 }}>
-        <span style={{ fontSize:14,fontWeight:700,color:"#111" }}>{boardDef.title}</span>
-        <span style={{ fontSize:10,fontWeight:600,color:"#BBB",letterSpacing:2 }}>{boardDef.titleEn}</span>
+    <div data-boardid={boardDef.id} style={{ marginBottom:16 }}>
+      <div style={{ display:"flex",alignItems:"baseline",gap:10,marginBottom:8,paddingBottom:6,borderBottom:"0.5px solid var(--color-separator)" }}>
+        <span style={{ fontSize:13,fontWeight:700,color:"var(--color-text)",letterSpacing:-0.3 }}>{boardDef.title}</span>
+        <span style={{ fontSize:9,fontWeight:600,color:"var(--color-tertiary)",letterSpacing:1.5 }}>{boardDef.titleEn}</span>
       </div>
-      {loading?<div style={{ fontSize:12,color:"#CCC",padding:"20px 0",textAlign:"center" }}>불러오는 중...</div>
+      {loading?<div style={{ fontSize:11,color:"var(--color-tertiary)",padding:"14px 0",textAlign:"center" }}>불러오는 중...</div>
       :isMobile?(
         <div>
-          <div style={{ display:"flex",borderBottom:"1px solid #EBEBEB",marginBottom:12 }}>
-            {boardDef.cols.map((col: any)=>{const cc=COL_COLORS[col.id]||{bg:"#F9F9F9",bar:"#DDD"};return(
+          {/* Mobile: Tab bar */}
+          <div style={{ display:"flex",borderBottom:"0.5px solid var(--color-separator)",marginBottom:8 }}>
+            {boardDef.cols.map((col: any)=>{const cc=COL_COLORS[col.id]||{bg:"var(--color-fill)",bar:"var(--color-tertiary)"};return(
               <button key={col.id} onClick={()=>setActiveTab(col.id)}
                 data-tabid={col.id} data-colid={col.id} data-boardid={boardDef.id}
-                style={{ flex:1,padding:"10px 4px",fontSize:12,fontWeight:activeTab===col.id?700:400,
-                  color:activeTab===col.id?"#111":"#AAA",background:activeTab===col.id?cc.bg:"transparent",
-                  border:"none",borderBottom:activeTab===col.id?`2px solid ${cc.bar}`:"2px solid transparent",cursor:"pointer",fontFamily:FONT }}>
-                {col.ko} <span style={{ fontSize:10,color:"#BBB" }}>{byCol(col.id).length}</span>
+                style={{ flex:1,padding:"8px 3px",fontSize:11,fontWeight:activeTab===col.id?700:400,
+                  color:activeTab===col.id?"var(--color-text)":"var(--color-tertiary)",
+                  background:activeTab===col.id?"var(--color-fill2)":"transparent",
+                  border:"none",borderBottom:activeTab===col.id?`2px solid ${cc.bar}`:"2px solid transparent",
+                  cursor:"pointer",fontFamily:FONT,transition:"all 0.15s" }}>
+                {col.ko} <span style={{ fontSize:9,color:"var(--color-tertiary)" }}>{byCol(col.id).length}</span>
               </button>
             );})}
           </div>
-          <div data-colid={activeTab} data-boardid={boardDef.id} style={{ minHeight:60 }}>
+          <div data-colid={activeTab} data-boardid={boardDef.id} style={{ minHeight:40 }}>
             {byCol(activeTab).map((card: any)=>renderCard(card))}
           </div>
-          <button onClick={()=>openAdd(activeTab)} style={{ width:"100%",padding:"12px",borderRadius:8,border:"1px dashed #E0E0E0",background:"transparent",cursor:"pointer",color:"#BABABA",fontSize:13,fontFamily:FONT }}>+ 추가</button>
+          <button className="kcol-add" onClick={()=>openAdd(activeTab)}
+            style={{ width:"100%",padding:"9px",borderRadius:8,border:"0.5px dashed var(--color-separator)",background:"transparent",cursor:"pointer",color:"var(--color-tertiary)",fontSize:12,fontFamily:FONT }}>+ 추가</button>
         </div>
       ):(
-        <div style={{ display:"flex",gap:10 }}>
-          {boardDef.cols.map((col: any)=>{const cc=COL_COLORS[col.id]||{bg:"#F9F9F9",bar:"#DDD"};const isOver=dragOverCol===col.id;return(
-            <div key={col.id} data-colid={col.id} data-boardid={boardDef.id}
-              style={{ flex:1,minWidth:0,background:isOver?`${cc.bg}dd`:cc.bg,borderRadius:10,padding:"10px 8px 8px",border:`2px solid ${isOver?cc.bar:"transparent"}`,transition:"all 0.15s" }}
-              onDragOver={(e: any)=>{e.preventDefault();setDragOverCol(col.id);}}
-              onDragLeave={(e: any)=>{if(!e.currentTarget.contains(e.relatedTarget as Node))setDragOverCol(null);}}
-              onDrop={(e: any)=>handleDrop(e,col.id)}>
-              <div style={{ marginBottom:8 }}>
-                <div style={{ display:"flex",alignItems:"center",gap:6 }}>
-                  <div style={{ width:8,height:8,borderRadius:"50%",background:cc.bar }}/>
-                  <span style={{ fontSize:12,fontWeight:700,color:"#111" }}>{col.ko}</span>
-                  <span style={{ fontSize:9,color:"#BBB" }}>{col.en}</span>
-                  <span style={{ marginLeft:"auto",fontSize:11,color:"#AAA",fontWeight:600,background:"rgba(0,0,0,0.06)",borderRadius:8,padding:"1px 7px" }}>{byCol(col.id).length}</span>
+        <div style={{ display:"flex",gap:6 }}>
+          {boardDef.cols.map((col: any)=>{
+            const cc=COL_COLORS[col.id]||{bg:"var(--color-fill)",bar:"var(--color-tertiary)"};
+            const isOver=dragOverCol===col.id;
+            return(
+              <div key={col.id} data-colid={col.id} data-boardid={boardDef.id}
+                style={{ flex:1,minWidth:0,
+                  background: isOver?`rgba(255,255,255,0.72)`:cc.bg,
+                  backdropFilter: "var(--glass-blur)",
+                  WebkitBackdropFilter: "var(--glass-blur)",
+                  borderRadius:"var(--col-radius)",
+                  padding:"8px 7px 7px",
+                  border:`0.5px solid ${isOver?cc.bar:"var(--glass-border)"}`,
+                  boxShadow: isOver?"0 0 0 2px "+cc.bar+", var(--glass-shadow)":"var(--glass-shadow)",
+                  transition:"all 0.15s" }}
+                onDragOver={(e: any)=>{e.preventDefault();setDragOverCol(col.id);}}
+                onDragLeave={(e: any)=>{if(!e.currentTarget.contains(e.relatedTarget as Node))setDragOverCol(null);}}
+                onDrop={(e: any)=>handleDrop(e,col.id)}>
+                <div style={{ marginBottom:6 }}>
+                  <div style={{ display:"flex",alignItems:"center",gap:5 }}>
+                    <div style={{ width:6,height:6,borderRadius:"50%",background:cc.bar,opacity:0.8 }}/>
+                    <span style={{ fontSize:11,fontWeight:700,color:"var(--color-text)",letterSpacing:-0.2 }}>{col.ko}</span>
+                    <span style={{ fontSize:8,color:"var(--color-tertiary)",letterSpacing:0.5 }}>{col.en}</span>
+                    <span style={{ marginLeft:"auto",fontSize:10,color:"var(--color-secondary)",fontWeight:600,background:"var(--color-fill2)",borderRadius:6,padding:"1px 5px" }}>{byCol(col.id).length}</span>
+                  </div>
+                  <div style={{ height:1.5,borderRadius:2,marginTop:5,background:cc.bar,opacity:0.4 }}/>
                 </div>
-                <div style={{ height:2,borderRadius:2,marginTop:6,background:cc.bar,opacity:0.5 }}/>
+                {byCol(col.id).map((card: any)=>renderCard(card))}
+                <button className="kcol-add" onClick={()=>openAdd(col.id)}
+                  style={{ width:"100%",textAlign:"left",fontSize:10,padding:"5px 6px",borderRadius:6,border:`0.5px dashed ${cc.bar}`,background:"rgba(255,255,255,0.35)",cursor:"pointer",color:"var(--color-tertiary)",display:"flex",alignItems:"center",gap:3,fontFamily:FONT }}>
+                  + 추가
+                </button>
               </div>
-              {byCol(col.id).map((card: any)=>renderCard(card))}
-              <button onClick={()=>openAdd(col.id)}
-                style={{ width:"100%",textAlign:"left",fontSize:11,padding:"6px 7px",borderRadius:6,border:`1px dashed ${cc.bar}`,background:"rgba(255,255,255,0.6)",cursor:"pointer",color:"#AAA",display:"flex",alignItems:"center",gap:4,fontFamily:FONT }}>
-                + 추가
-              </button>
-            </div>
-          );})}
+            );
+          })}
         </div>
       )}
       {isMyPanel&&<SidePanel form={panelState.form} setForm={setForm} cols={boardDef.cols} mode={panelState.mode} onSave={handleSave} onDelete={handleDelete} onClose={()=>setPanelState(null)} isMobile={isMobile}/>}
@@ -494,6 +614,7 @@ function Board({ boardDef, panelState, setPanelState, hidePersonal, allCardsRef,
   );
 }
 
+// ── App root ─────────────────────────────────────────────────────────
 export default function App() {
   const [panelState,setPanelState]=useState<any>(null);
   const [hidePersonal,setHidePersonal]=useState(false);
@@ -505,31 +626,63 @@ export default function App() {
   const allCards=Object.values(allCardsRef.current).flatMap((b: any)=>b.cards||[]);
 
   return (
-    <div style={{ fontFamily:FONT,background:"#F7F8FA",minHeight:"100vh" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700&display=swap'); *{-webkit-tap-highlight-color:transparent;box-sizing:border-box;}`}</style>
-      <div style={{ padding:isMobile?"12px 16px":"14px 20px 10px",borderBottom:"1px solid #EBEBEB",display:"flex",alignItems:"center",background:"#fff",position:"sticky",top:0,zIndex:100 }}>
-        <p style={{ margin:0,fontSize:isMobile?11:13,color:"#BABABA",fontStyle:"italic" }}>Manifesting aura; making the intangible tangible.</p>
-        <div style={{ marginLeft:"auto",display:"flex",alignItems:"center",gap:10 }}>
-          {isMobile&&<button onClick={()=>setShowCalendar((v: boolean)=>!v)} style={{ background:"none",border:"none",fontSize:20,cursor:"pointer",color:showCalendar?"#111":"#CCC",padding:0 }}>📅</button>}
-          <label style={{ display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:isMobile?11:12,color:"#888",userSelect:"none" }}>
-            <div onClick={()=>setHidePersonal((v: boolean)=>!v)} style={{ width:34,height:18,borderRadius:10,background:hidePersonal?"#111":"#DDD",position:"relative",transition:"background 0.2s",cursor:"pointer",flexShrink:0 }}>
-              <div style={{ width:14,height:14,borderRadius:"50%",background:"#fff",position:"absolute",top:2,left:hidePersonal?18:2,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }}/>
+    <div style={{ fontFamily:FONT,background:"var(--surface-bg)",minHeight:"100vh" }}>
+      <style>{APPLE_STYLE}</style>
+
+      {/* Top nav bar — Apple translucent */}
+      <div style={{
+        padding: isMobile?"10px 14px":"11px 18px 10px",
+        borderBottom: "0.5px solid var(--color-separator)",
+        display: "flex", alignItems: "center",
+        background: "var(--glass-bg)",
+        backdropFilter: "var(--glass-blur)",
+        WebkitBackdropFilter: "var(--glass-blur)",
+        position: "sticky", top: 0, zIndex: 100,
+      } as any}>
+        <p style={{ margin:0,fontSize:isMobile?10:12,color:"var(--color-tertiary)",fontStyle:"italic",letterSpacing:0.2 }}>Manifesting aura; making the intangible tangible.</p>
+        <div style={{ marginLeft:"auto",display:"flex",alignItems:"center",gap:8 }}>
+          {isMobile&&(
+            <button onClick={()=>setShowCalendar((v: boolean)=>!v)}
+              style={{ background:showCalendar?"var(--color-fill2)":"none",border:"none",fontSize:17,cursor:"pointer",
+                color:showCalendar?"var(--color-text)":"var(--color-tertiary)",padding:"4px 6px",borderRadius:8 }}>📅</button>
+          )}
+          <label style={{ display:"flex",alignItems:"center",gap:5,cursor:"pointer",fontSize:isMobile?10:11,color:"var(--color-secondary)",userSelect:"none" }}>
+            <div onClick={()=>setHidePersonal((v: boolean)=>!v)}
+              style={{ width:30,height:17,borderRadius:9,background:hidePersonal?"#1C1C1E":"var(--color-fill2)",position:"relative",transition:"background 0.2s",cursor:"pointer",flexShrink:0 }}>
+              <div style={{ width:13,height:13,borderRadius:"50%",background:hidePersonal?"#fff":"var(--color-tertiary)",position:"absolute",top:2,left:hidePersonal?15:2,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }}/>
             </div>
-            {!isMobile&&"개인일정 숨기기"}
+            {!isMobile&&<span style={{ fontSize:11 }}>개인일정 숨기기</span>}
           </label>
         </div>
       </div>
-      {isMobile&&showCalendar&&<div style={{ padding:"16px",background:"#fff",borderBottom:"1px solid #EBEBEB" }}><MiniCalendar allCards={allCards} onDateClick={handleDateClick}/></div>}
+
+      {/* Mobile calendar dropdown */}
+      {isMobile&&showCalendar&&(
+        <div style={{ padding:"12px 14px 10px",background:"var(--glass-bg)",backdropFilter:"var(--glass-blur)",WebkitBackdropFilter:"var(--glass-blur)",borderBottom:"0.5px solid var(--color-separator)" }}>
+          <MiniCalendar allCards={allCards} onDateClick={handleDateClick}/>
+        </div>
+      )}
+
+      {/* Main layout */}
       <div style={{ display:"flex",alignItems:"flex-start" }}>
-        {!isMobile&&<div style={{ width:240,flexShrink:0,padding:"18px 14px",position:"sticky",top:50 }}><MiniCalendar allCards={allCards} onDateClick={handleDateClick}/></div>}
-        <div style={{ flex:1,padding:isMobile?"16px":"18px 20px 18px 6px",marginRight:(!isMobile&&panelState)?300:0,transition:"margin-right 0.22s ease",minWidth:0 }}>
+        {!isMobile&&(
+          <div style={{ width:220,flexShrink:0,padding:"14px 10px",position:"sticky",top:44 }}>
+            <MiniCalendar allCards={allCards} onDateClick={handleDateClick}/>
+          </div>
+        )}
+        <div style={{ flex:1,padding:isMobile?"12px 12px":"14px 16px 14px 4px",marginRight:(!isMobile&&panelState)?288:0,transition:"margin-right 0.22s ease",minWidth:0 }}>
           {BOARDS_DEF.filter(b=>!(hidePersonal&&b.id==="personal")).map(b=>(
             <Board key={b.id} boardDef={b} panelState={panelState} setPanelState={setPanelState}
               hidePersonal={hidePersonal} allCardsRef={allCardsRef.current} isMobile={isMobile}/>
           ))}
         </div>
       </div>
-      {panelState&&<div onClick={()=>setPanelState(null)} style={{ position:"fixed",inset:0,zIndex:499,background:isMobile?"rgba(0,0,0,0.3)":"transparent" }}/>}
+
+      {/* Backdrop for panel */}
+      {panelState&&(
+        <div onClick={()=>setPanelState(null)}
+          style={{ position:"fixed",inset:0,zIndex:499,background:isMobile?"rgba(0,0,0,0.25)":"transparent" }}/>
+      )}
     </div>
   );
 }
