@@ -144,6 +144,45 @@ const STYLE = `
     width:100%; height:100%; border:none; background:transparent; font-size:10.5px;
     text-align:center; color:inherit; outline:none; font-family:var(--font);
   }
+
+  /* Planning Calendar */
+  .plan-cal-grid {
+    display:grid; grid-template-columns:repeat(7,1fr); gap:2px;
+  }
+  .plan-cal-header {
+    font-size:9.5px; font-weight:600; text-align:center; padding:3px 0 5px;
+    letter-spacing:0.02em;
+  }
+  .plan-day {
+    background:var(--surface); border:1px solid var(--border-lt);
+    border-radius:5px; min-height:52px; padding:4px 5px;
+    cursor:pointer; transition:border-color .12s, box-shadow .12s;
+    overflow:hidden; position:relative;
+  }
+  .plan-day:hover { border-color:var(--border); box-shadow:0 1px 4px rgba(0,0,0,.05); }
+  .plan-day.today { border-color:var(--accent); }
+  .plan-day.empty { background:transparent; border-color:transparent; cursor:default; }
+  .plan-day.has-content { background:var(--col-bg); }
+  .plan-day-num {
+    font-size:10px; font-weight:600; line-height:1; margin-bottom:3px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .plan-day-text {
+    font-size:10px; color:var(--text-sub); line-height:1.4;
+    overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  }
+  .plan-day-editing {
+    position:absolute; inset:0; z-index:10;
+    background:var(--surface);
+    border:1.5px solid var(--accent);
+    border-radius:5px; padding:4px 5px;
+    display:flex; flex-direction:column; gap:3px;
+    box-shadow:0 4px 16px rgba(0,0,0,.12);
+  }
+  .plan-day-editing textarea {
+    flex:1; border:none; background:transparent; resize:none; outline:none;
+    font-size:10.5px; line-height:1.45; color:var(--text); font-family:var(--font);
+  }
 `;
 
 // ── Column metadata ────────────────────────────────────────────────────────────
@@ -770,6 +809,138 @@ function MandalaView() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// PlanningView — monthly content planning calendar
+// ─────────────────────────────────────────────────────────────────────────────
+function PlanningView() {
+  const today = new Date();
+  const [view,setView] = useState({y:today.getFullYear(),m:today.getMonth()});
+  // planData: { "YYYY-MM-DD": "text" }
+  const [planData,setPlanData] = useState<Record<string,string>>(()=>{
+    try { return JSON.parse(localStorage.getItem("planning_data")||"{}"); } catch { return {}; }
+  });
+  const [editingDay,setEditingDay] = useState<string|null>(null);
+  const [editVal,setEditVal] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const toKey=(y:number,m:number,d:number)=>
+    `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+
+  const todayKey = toKey(today.getFullYear(),today.getMonth(),today.getDate());
+  const firstDay = new Date(view.y,view.m,1).getDay();
+  const daysInMonth = new Date(view.y,view.m+1,0).getDate();
+  const cells:(number|null)[] = [...Array(firstDay).fill(null),...Array.from({length:daysInMonth},(_,i)=>i+1)];
+  while(cells.length%7!==0) cells.push(null);
+
+  const WK=["일","월","화","수","목","금","토"];
+
+  const openEdit=(key:string)=>{
+    setEditingDay(key);
+    setEditVal(planData[key]||"");
+    setTimeout(()=>{textareaRef.current?.focus();},60);
+  };
+  const commitEdit=()=>{
+    if(!editingDay) return;
+    const trimmed=editVal.trim();
+    setPlanData(prev=>{
+      const next={...prev};
+      if(trimmed) next[editingDay]=trimmed; else delete next[editingDay];
+      localStorage.setItem("planning_data",JSON.stringify(next));
+      return next;
+    });
+    setEditingDay(null);
+  };
+
+  return (
+    <div>
+      {/* Month nav */}
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+        <button onClick={()=>setView(v=>v.m===0?{y:v.y-1,m:11}:{y:v.y,m:v.m-1})}
+          style={{fontSize:15,color:"var(--text-sub)",padding:"2px 6px",borderRadius:4,lineHeight:1}}>‹</button>
+        <span style={{fontSize:12,fontWeight:600,color:"var(--text)",minWidth:70,textAlign:"center"}}>
+          {view.y}. {String(view.m+1).padStart(2,"0")}
+        </span>
+        <button onClick={()=>setView(v=>v.m===11?{y:v.y+1,m:0}:{y:v.y,m:v.m+1})}
+          style={{fontSize:15,color:"var(--text-sub)",padding:"2px 6px",borderRadius:4,lineHeight:1}}>›</button>
+        <button onClick={()=>setView({y:today.getFullYear(),m:today.getMonth()})}
+          style={{fontSize:10,color:"var(--text-light)",padding:"2px 7px",borderRadius:4,
+            border:"1px solid var(--border)",marginLeft:2,fontWeight:500}}>오늘</button>
+      </div>
+
+      <div className="plan-cal-grid">
+        {/* Day-of-week headers */}
+        {WK.map((d,i)=>(
+          <div key={d} className="plan-cal-header"
+            style={{color:i===0?"var(--red)":i===6?"var(--blue)":"var(--text-light)"}}>
+            {d}
+          </div>
+        ))}
+
+        {/* Day cells */}
+        {cells.map((day,i)=>{
+          if(!day) return <div key={i} className="plan-day empty"/>;
+          const key=toKey(view.y,view.m,day);
+          const text=planData[key]||"";
+          const dow=(firstDay+day-1)%7;
+          const isSun=dow===0, isSat=dow===6;
+          const mmdd=`${String(view.m+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+          const isHol=!!HOLIDAYS[mmdd];
+          const isToday=key===todayKey;
+          const isEditing=editingDay===key;
+
+          return (
+            <div key={i}
+              className={`plan-day${isToday?" today":""}${text?" has-content":""}`}
+              onClick={()=>{ if(!isEditing) openEdit(key); }}>
+              {/* Day number */}
+              <div className="plan-day-num">
+                <span style={{
+                  color: isToday?"var(--accent)":(isHol||isSun)?"var(--red)":isSat?"var(--blue)":"var(--text-light)",
+                  fontWeight: isToday?700:500,
+                  background: isToday?"var(--accent-lt)":"transparent",
+                  borderRadius:3, padding:isToday?"0 3px":"0",
+                }}>{day}</span>
+                {isHol&&<span style={{fontSize:8,color:"var(--red)",maxWidth:30,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{HOLIDAYS[mmdd]}</span>}
+              </div>
+
+              {/* Content text (display mode) */}
+              {!isEditing&&text&&(
+                <div className="plan-day-text">{text}</div>
+              )}
+
+              {/* Inline editor */}
+              {isEditing&&(
+                <div className="plan-day-editing" onClick={e=>e.stopPropagation()}>
+                  <div style={{fontSize:10,fontWeight:600,color:"var(--accent)",letterSpacing:"-0.01em"}}>
+                    {view.m+1}/{day}
+                  </div>
+                  <textarea ref={textareaRef} value={editVal} onChange={e=>setEditVal(e.target.value)}
+                    placeholder="플래닝 메모…"
+                    rows={3}
+                    onKeyDown={e=>{
+                      if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();commitEdit();}
+                      if(e.key==="Escape"){setEditingDay(null);}
+                    }}
+                    onBlur={commitEdit}/>
+                  <div style={{display:"flex",gap:3,justifyContent:"flex-end"}}>
+                    <button onClick={commitEdit}
+                      style={{fontSize:9,padding:"2px 7px",background:"var(--n900)",color:"#fff",borderRadius:4,fontWeight:600}}>저장</button>
+                    <button onClick={e=>{e.stopPropagation();setEditingDay(null);}}
+                      style={{fontSize:9,padding:"2px 6px",color:"var(--text-light)",borderRadius:4}}>취소</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{marginTop:6,fontSize:10,color:"var(--text-light)"}}>
+        날짜 클릭 → 메모 입력 · Enter 저장 · Shift+Enter 줄바꿈 · ESC 취소
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // App
 // ─────────────────────────────────────────────────────────────────────────────
 export default function App() {
@@ -787,6 +958,9 @@ export default function App() {
   const [collapsedMandala,setCollapsedMandala] = useState<boolean>(()=>{
     try { return JSON.parse(localStorage.getItem("mandala_collapsed")||"false"); } catch { return false; }
   });
+  const [collapsedPlanning,setCollapsedPlanning] = useState<boolean>(()=>{
+    try { return JSON.parse(localStorage.getItem("planning_collapsed")||"true"); } catch { return true; }
+  });
 
   const toggleBoardCollapse=(id:string)=>{
     setCollapsedBoards(prev=>{
@@ -799,6 +973,13 @@ export default function App() {
     setCollapsedMandala(prev=>{
       const next=!prev;
       localStorage.setItem("mandala_collapsed",JSON.stringify(next));
+      return next;
+    });
+  };
+  const togglePlanningCollapse=()=>{
+    setCollapsedPlanning(prev=>{
+      const next=!prev;
+      localStorage.setItem("planning_collapsed",JSON.stringify(next));
       return next;
     });
   };
@@ -1022,9 +1203,24 @@ export default function App() {
                       <span style={{fontSize:10,color:"var(--text-light)"}}>— 중앙 목표를 중심으로 8×8 세부 목표 설정</span>
                     </div>
                     {!collapsedMandala&&<MandalaView/>}
-                    <div style={{height:20}}/>
                   </>
                 )}
+
+                {/* Planning section — always visible (independent of personal board) */}
+                <div style={{height:1,background:"var(--border-lt)",margin:"2px 0"}}/>
+                <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",userSelect:"none"}}
+                  onClick={togglePlanningCollapse}>
+                  <button style={{
+                    width:18,height:18,borderRadius:4,border:"1px solid var(--border)",
+                    display:"flex",alignItems:"center",justifyContent:"center",
+                    background:"var(--surface)",fontSize:10,color:"var(--text-sub)",
+                    transform:collapsedPlanning?"rotate(-90deg)":"rotate(0deg)",transition:"transform .15s",flexShrink:0,
+                  }}>▾</button>
+                  <span style={{fontSize:11,fontWeight:600,color:"var(--text-sub)",letterSpacing:"0.05em",textTransform:"uppercase"}}>플래닝</span>
+                  <span style={{fontSize:10,color:"var(--text-light)"}}>— 콘텐츠 월간 플래닝</span>
+                </div>
+                {!collapsedPlanning&&<PlanningView/>}
+                <div style={{height:20}}/>
               </>
           }
         </div>
