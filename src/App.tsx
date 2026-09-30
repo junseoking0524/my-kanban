@@ -72,18 +72,18 @@ const STYLE = `
 
   /* Card */
   .kcard {
-    background:var(--surface);
-    border:1px solid var(--border-lt);
-    border-radius:var(--radius-sm);
+    background:#fff;
+    border:1px solid #1a1a1a;
+    border-radius:5px;
     padding:8px 10px;
     margin-bottom:4px;
     cursor:grab;
     user-select:none;
     transition:box-shadow .15s ease, transform .1s ease;
   }
-  .kcard:hover { box-shadow:0 2px 12px rgba(0,0,0,.07), 0 1px 3px rgba(0,0,0,.05); border-color:var(--border); }
-  .kcard.dragging { opacity:.35; transform:scale(.97); }
-  .kcard.drag-over { border-top:2px solid var(--accent); }
+  .kcard:hover { box-shadow:0 3px 10px rgba(0,0,0,.12); }
+  .kcard.dragging { opacity:.3; transform:scale(.97); }
+  .kcard.drag-over { border-top:2px solid #1a1a1a; }
 
   /* Inputs */
   .k-input {
@@ -516,22 +516,12 @@ function SidePanel({card,boardId,onClose,onSave,onDelete,allTags}:{
               style={{...panelInputStyle,resize:"none",lineHeight:1.5}}/>
           </Field>
 
-          {/* 진행률 */}
-          <Field label="진행률 %" hint="0–100, 방향키로 조절">
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <div style={{flex:1,height:4,background:"#eee",borderRadius:2,overflow:"hidden",border:"1px solid #ddd"}}>
-                <div style={{height:"100%",width:`${form.progress??0}%`,
-                  background:(form.progress??0)>=100?"#16a34a":(form.progress??0)>=50?"#2563eb":"#6366f1",
-                  transition:"width .2s"}}/>
-              </div>
-              <input type="number" min={0} max={100} value={form.progress??0}
-                className={panelInputFocusCls}
-                onChange={e=>setForm(f=>({...f,progress:Math.min(100,Math.max(0,Number(e.target.value)))}))}
-                onKeyDown={e=>{
-                  if(e.key==="ArrowUp"){e.preventDefault();setForm(f=>({...f,progress:Math.min(100,(f.progress??0)+5)}));}
-                  if(e.key==="ArrowDown"){e.preventDefault();setForm(f=>({...f,progress:Math.max(0,(f.progress??0)-5)}));}
-                }}
-                style={{...panelInputStyle,width:52,textAlign:"center",padding:"5px 4px",fontSize:12}}/>
+          {/* 진행률 — 카드 상단 바에서 마우스 드래그로 조절 */}
+          <Field label="진행률" hint={`${form.progress??0}% — 카드 상단 바를 드래그해서 조절`}>
+            <div style={{height:8,background:"#eee",borderRadius:4,overflow:"hidden",border:"1px solid #ccc",cursor:"default"}}>
+              <div style={{height:"100%",width:`${form.progress??0}%`,
+                background:(form.progress??0)>=100?"#16a34a":(form.progress??0)>=50?"#2563eb":"#6366f1",
+                transition:"width .2s"}}/>
             </div>
           </Field>
 
@@ -654,12 +644,13 @@ function QuickAdd({onAdd,onCancel}:{onAdd:(t:string)=>void;onCancel:()=>void}) {
 // Board
 // ─────────────────────────────────────────────────────────────────────────────
 function Board({def,cards,collapsed,onToggleCollapse,onCardClick,onQuickAdd,onDrop,
-  activeTagFilter,doneSearch,setDoneSearch}:{
+  activeTagFilter,doneSearch,setDoneSearch,onProgressChange}:{
   def:typeof BOARDS_DEF[0]; cards:Card[]; collapsed:boolean;
   onToggleCollapse:()=>void;
   onCardClick:(c:Card)=>void; onQuickAdd:(colId:string,title:string,boardId:string)=>void;
   onDrop:(targetColId:string,afterCardId:string|null,boardId:string)=>void;
   activeTagFilter:string|null; doneSearch:string; setDoneSearch:(s:string)=>void;
+  onProgressChange:(cardId:string,boardId:string,v:number)=>void;
 }) {
   const [dragOverCol,setDragOverCol]=useState<string|null>(null);
   const [dragOverCard,setDragOverCard]=useState<string|null>(null);
@@ -716,10 +707,10 @@ function Board({def,cards,collapsed,onToggleCollapse,onCardClick,onQuickAdd,onDr
                 onDragOver={e=>onDragOver(e,col.id)} onDrop={e=>onDropH(e,col.id)}
                 style={{
                   flex:"1 1 0",minWidth:165,maxWidth:290,
-                  background:"var(--col-bg)",
-                  borderRadius:var_("--radius-md"),
+                  background:"#f5f5f5",
+                  borderRadius:6,
                   padding:"9px 8px 7px",
-                  border:`1.5px solid ${isOver?"var(--accent)":"transparent"}`,
+                  border:`1.5px solid ${isOver?"#111":"#d1d1d1"}`,
                   transition:"border-color .1s",
                 }}>
                 {/* Col header */}
@@ -745,11 +736,24 @@ function Board({def,cards,collapsed,onToggleCollapse,onCardClick,onQuickAdd,onDr
                 )}
                 {/* Cards */}
                 {colCards.map(card=>{
-                  const isDue=card.dueDate&&card.dueDate<today;
-                  const isDueToday=card.dueDate===today;
+                  const isDue=card.dueDate&&card.dueDate.slice(0,10)<today;
+                  const isDueToday=card.dueDate?.slice(0,10)===today;
                   const label=CAL_LABELS.find(l=>l.id===card.labelId);
                   const prog=card.progress??0;
-                  const progColor=prog>=100?"#16a34a":prog>=50?"#3b82f6":"#6366f1";
+                  const progColor=prog>=100?"#16a34a":prog>=50?"#2563eb":"#6366f1";
+
+                  // Inline progress drag on the top bar
+                  const handleProgDrag=(e:React.MouseEvent,cardEl:HTMLElement)=>{
+                    e.stopPropagation(); e.preventDefault();
+                    const rect=cardEl.getBoundingClientRect();
+                    const calc=(cx:number)=>Math.round(Math.max(0,Math.min(1,(cx-rect.left)/rect.width))*100);
+                    onProgressChange(card.id,def.id,calc(e.clientX));
+                    const move=(mv:MouseEvent)=>{mv.preventDefault();onProgressChange(card.id,def.id,calc(mv.clientX));};
+                    const up=()=>{window.removeEventListener("mousemove",move);window.removeEventListener("mouseup",up);};
+                    window.addEventListener("mousemove",move);
+                    window.addEventListener("mouseup",up);
+                  };
+
                   return (
                     <div key={card.id}
                       className={`kcard${gDrag.cardId===card.id?" dragging":""}${dragOverCard===card.id?" drag-over":""}`}
@@ -758,48 +762,51 @@ function Board({def,cards,collapsed,onToggleCollapse,onCardClick,onQuickAdd,onDr
                       onDragOver={e=>onDragOver(e,col.id,card.id)} onDrop={e=>onDropH(e,col.id,card.id)}
                       onClick={()=>onCardClick(card)}
                       style={{position:"relative",overflow:"hidden"}}>
-                      {/* Progress top bar (background track + colored fill) */}
-                      {prog>0&&(
-                        <>
-                          <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:"var(--border-lt)"}}/>
-                          <div style={{position:"absolute",top:0,left:0,width:`${prog}%`,height:3,
-                            background:progColor,transition:"width .3s ease",
-                            borderTopLeftRadius:5,borderTopRightRadius:prog>=100?5:0}}/>
-                        </>
-                      )}
-                      {/* Label color stripe (below progress bar) */}
+                      {/* Progress top bar — always show track, drag to set */}
+                      <div
+                        title={prog>0?`${prog}%`:"드래그해서 진행률 설정"}
+                        onMouseDown={e=>handleProgDrag(e,e.currentTarget.closest(".kcard") as HTMLElement)}
+                        onClick={e=>e.stopPropagation()}
+                        style={{
+                          position:"absolute",top:0,left:0,right:0,height:5,
+                          background:"#e5e7eb",cursor:"col-resize",zIndex:2,
+                        }}>
+                        {prog>0&&(
+                          <div style={{
+                            position:"absolute",top:0,left:0,height:"100%",
+                            width:`${prog}%`,background:progColor,
+                            transition:"width .15s",
+                            borderTopRightRadius:prog>=100?0:2,
+                          }}/>
+                        )}
+                      </div>
+                      {/* Label color stripe */}
                       {label&&(
-                        <div style={{height:2.5,borderRadius:2,background:label.color,
-                          margin:`${prog>0?3:-8}px -10px 7px`,borderTopLeftRadius:5,borderTopRightRadius:5}}/>
+                        <div style={{height:2,borderRadius:1,background:label.color,
+                          margin:"5px -10px 6px",borderTopLeftRadius:0,borderTopRightRadius:0}}/>
                       )}
-                      <div style={{display:"flex",alignItems:"flex-start",gap:6}}>
-                        <span style={{flex:1,fontSize:12.5,color:"var(--text)",lineHeight:1.45,
+                      {/* Title row */}
+                      <div style={{marginTop:label?0:4,display:"flex",alignItems:"flex-start",gap:5}}>
+                        <span style={{flex:1,fontSize:12.5,color:"#111",lineHeight:1.45,
                           wordBreak:"break-word",fontWeight:500}}>
                           {card.title}
                         </span>
-                        {prog>0&&(
-                          <span style={{fontSize:9.5,fontWeight:700,
-                            color:prog>=100?"var(--green)":prog>=50?"var(--blue)":"var(--text-light)",
-                            flexShrink:0,marginTop:1}}>{prog}%</span>
-                        )}
                       </div>
+                      {/* Date — single line, no wrap */}
                       {card.dueDate&&(()=>{
                         const KO_DAYS=["일","월","화","수","목","금","토"];
                         const raw=card.dueDate!;
-                        // Parse date part (YYYY-MM-DD or YYYY-MM-DDTHH:mm...)
                         const datePart=raw.slice(0,10);
                         const timePart=raw.length>10?raw.slice(11,16):"";
                         const [y,mo,d]=datePart.split("-").map(Number);
                         const dow=new Date(y,mo-1,d).getDay();
-                        const formatted=`${String(mo).padStart(2,"0")}/${String(d).padStart(2,"0")} (${KO_DAYS[dow]})`;
-                        const dateColor=isDue?"var(--red)":isDueToday?"var(--orange)":"var(--text-light)";
-                        const fw=(isDue||isDueToday)?600:400;
+                        const formatted=`${String(mo).padStart(2,"0")}/${String(d).padStart(2,"0")} (${KO_DAYS[dow]})${timePart?" "+timePart:""}`;
+                        const dateColor=isDue?"#dc2626":isDueToday?"#ea580c":"#9ca3af";
                         return (
-                          <div style={{marginTop:4,fontSize:10,display:"flex",
-                            justifyContent:"space-between",alignItems:"center",
-                            color:dateColor,fontWeight:fw}}>
-                            <span>{formatted}</span>
-                            {timePart&&<span style={{fontSize:9.5,opacity:.85}}>{timePart}</span>}
+                          <div style={{marginTop:4,fontSize:10,whiteSpace:"nowrap",overflow:"hidden",
+                            textOverflow:"ellipsis",color:dateColor,
+                            fontWeight:(isDue||isDueToday)?600:400}}>
+                            {formatted}
                           </div>
                         );
                       })()}
@@ -1313,7 +1320,8 @@ export default function App() {
                     onQuickAdd={handleQuickAdd}
                     onDrop={handleDrop}
                     activeTagFilter={activeTagFilter}
-                    doneSearch={doneSearch} setDoneSearch={setDoneSearch}/>
+                    doneSearch={doneSearch} setDoneSearch={setDoneSearch}
+                    onProgressChange={handleProgressChange}/>
                 ))}
                 {/* Mandala section — hidden when personal board is collapsed */}
                 {!collapsedBoards["personal"]&&(
