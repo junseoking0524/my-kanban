@@ -667,13 +667,26 @@ function Board({def,cards,collapsed,onToggleCollapse,onCardClick,onQuickAdd,onDr
                             flexShrink:0,marginTop:1}}>{prog}%</span>
                         )}
                       </div>
-                      {card.dueDate&&(
-                        <div style={{marginTop:4,fontSize:10,
-                          color:isDue?"var(--red)":isDueToday?"var(--orange)":"var(--text-light)",
-                          fontWeight:(isDue||isDueToday)?600:400}}>
-                          {card.dueDate}
-                        </div>
-                      )}
+                      {card.dueDate&&(()=>{
+                        const KO_DAYS=["일","월","화","수","목","금","토"];
+                        const raw=card.dueDate!;
+                        // Parse date part (YYYY-MM-DD or YYYY-MM-DDTHH:mm...)
+                        const datePart=raw.slice(0,10);
+                        const timePart=raw.length>10?raw.slice(11,16):"";
+                        const [y,mo,d]=datePart.split("-").map(Number);
+                        const dow=new Date(y,mo-1,d).getDay();
+                        const formatted=`${String(mo).padStart(2,"0")}/${String(d).padStart(2,"0")} (${KO_DAYS[dow]})`;
+                        const dateColor=isDue?"var(--red)":isDueToday?"var(--orange)":"var(--text-light)";
+                        const fw=(isDue||isDueToday)?600:400;
+                        return (
+                          <div style={{marginTop:4,fontSize:10,display:"flex",
+                            justifyContent:"space-between",alignItems:"center",
+                            color:dateColor,fontWeight:fw}}>
+                            <span>{formatted}</span>
+                            {timePart&&<span style={{fontSize:9.5,opacity:.85}}>{timePart}</span>}
+                          </div>
+                        );
+                      })()}
                       {(card.tags||[]).length>0&&(
                         <div style={{display:"flex",flexWrap:"wrap",gap:2,marginTop:5}}>
                           {(card.tags||[]).map(t=><span key={t} className="tag-pill">{t}</span>)}
