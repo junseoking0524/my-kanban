@@ -949,7 +949,7 @@ function HelpOverlay({onClose}:{onClose:()=>void}) {
           </div>
         ))}
         <div style={{marginTop:12,fontSize:11,color:"#a1a1aa",lineHeight:1.6}}>
-          카드를 끌어서 화면 아래쪽 1/3로 가져가면 연한 붉은 삭제 영역이 나타나요. 거기에 놓으면 삭제되고, 6초 안에 되돌릴 수 있어요.
+          카드를 끌어서 화면 맨 아래쪽에 잠시 머물면 연한 붉은 삭제 영역이 나타나요. 거기에 놓으면 삭제되고, 6초 안에 되돌릴 수 있어요.
         </div>
       </div>
     </div>
@@ -1159,19 +1159,33 @@ export default function App() {
 
   // 드래그 중에만 삭제 영역 표시
   useEffect(()=>{
+    // 삭제 영역은 카드를 화면 맨 아래쪽(하단 15%)에 잠시 머물게 했을 때만 나타남.
+    // 일반적인 끌기·보드 간 이동에서는 절대 보이지 않음.
+    let timer:ReturnType<typeof setTimeout>|null=null;
+    let shown=false;
+    const clear=()=>{ if(timer){clearTimeout(timer);timer=null;} };
     const start=()=>{ if(gDrag.cardId) setDragging(true); };
-    const end=()=>{ setDragging(false); setTrashOver(false); };
-    // 카드를 화면 아래쪽 1/3로 가져갈 때만 삭제 영역을 보여줌 (보드 간 이동 때는 나타나지 않음)
+    const end=()=>{ clear(); shown=false; setDragging(false); setTrashOver(false); };
     const over=(e:DragEvent)=>{
       if(!gDrag.cardId) return;
       const left=window.innerWidth<900?0:SIDEBAR_W;
-      setTrashOver(e.clientY>=window.innerHeight*0.67&&e.clientX>=left);
+      const h=window.innerHeight;
+      if(shown){
+        // 이미 나타난 뒤에는 하단 1/3 안에 있는 동안 유지
+        if(e.clientY<h*0.67||e.clientX<left){ shown=false; setTrashOver(false); }
+        return;
+      }
+      const inEdge=e.clientY>=h*0.85&&e.clientX>=left;
+      if(inEdge){
+        if(!timer) timer=setTimeout(()=>{ timer=null; shown=true; setTrashOver(true); },350);
+      } else clear();
     };
     window.addEventListener("dragstart",start);
     window.addEventListener("dragover",over);
     window.addEventListener("dragend",end);
     window.addEventListener("drop",end);
     return ()=>{
+      clear();
       window.removeEventListener("dragstart",start);
       window.removeEventListener("dragover",over);
       window.removeEventListener("dragend",end);
@@ -1526,7 +1540,7 @@ export default function App() {
           <span><span className="kbd">+</span> 추가</span>
           <span><span className="kbd">↑</span><span className="kbd" style={{marginLeft:2}}>↓</span> 선택</span>
           <span><span className="kbd">Enter</span> 편집</span>
-          <span><span className="kbd">Delete</span> 삭제 (카드를 아래로 끌어도 삭제)</span>
+          <span><span className="kbd">Delete</span> 삭제 (카드를 맨 아래로 끌어도 삭제)</span>
           <span><span className="kbd">Tab</span> 다음 항목</span>
           <span><span className="kbd">Esc</span> 닫기</span>
           <span><span className="kbd">?</span> 전체 단축키</span>
