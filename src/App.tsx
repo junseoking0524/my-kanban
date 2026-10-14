@@ -194,17 +194,91 @@ const STYLE = `
     flex:1; border:none; background:transparent; resize:none; outline:none;
     font-size:10.5px; line-height:1.45; color:var(--text); font-family:var(--font);
   }
-`;
 
-// ── Column metadata ────────────────────────────────────────────────────────────
-const COL_META: Record<string, { dot:string; progress:string }> = {
-  todo:       { dot:"#a1a1aa", progress:"#71717a" },
-  inprogress: { dot:"#52525b", progress:"#52525b" },
-  done:       { dot:"#18181b", progress:"#18181b" },
-  check:      { dot:"#a1a1aa", progress:"#71717a" },
-  carry:      { dot:"#52525b", progress:"#52525b" },
-  memo:       { dot:"#d4d4d8", progress:"#a1a1aa" },
-};
+  /* ═══ Metallic / bling layer ═══ */
+  html, body { background:linear-gradient(135deg,#d9dce2 0%,#f3f4f6 36%,#e4e6ea 62%,#d3d6dc 100%) fixed; }
+  .metal-nav { background:linear-gradient(180deg,#ffffff 0%,#eceef1 55%,#d6d9df 100%);
+    border-bottom:1px solid #a9adb6; box-shadow:inset 0 1px 0 #fff, 0 2px 12px rgba(0,0,0,.10); }
+  .metal-side { background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(236,238,241,.9));
+    border-right:1px solid #b4b8c0; box-shadow:inset -1px 0 0 rgba(255,255,255,.8); }
+  .logo-chrome { background:linear-gradient(145deg,#8a8e98 0%,#18181b 42%,#5b5e68 68%,#0b0b0d 100%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.55), 0 2px 8px rgba(0,0,0,.4); position:relative; overflow:hidden; }
+  .logo-chrome::after { content:""; position:absolute; inset:0;
+    background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.7) 50%,transparent 65%);
+    transform:translateX(-130%); animation:shine 4.5s ease-in-out infinite; }
+  .brand-text { background:linear-gradient(180deg,#52525b,#09090b); -webkit-background-clip:text; background-clip:text; color:transparent; }
+
+  .btn-dark { color:#fff; border:1px solid #09090b;
+    background:linear-gradient(180deg,#5a5d66 0%,#27272a 52%,#09090b 100%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.4), 0 2px 6px rgba(0,0,0,.28); transition:filter .12s, transform .08s; }
+  .btn-dark:hover { filter:brightness(1.15); }
+  .btn-dark:active { transform:translateY(1px); }
+  .btn-light { color:#3f3f46; border:1px solid #a9adb6;
+    background:linear-gradient(180deg,#ffffff 0%,#e9ebef 55%,#d3d6dc 100%);
+    box-shadow:inset 0 1px 0 #fff, 0 1px 3px rgba(0,0,0,.08); transition:filter .12s; }
+  .btn-light:hover { filter:brightness(1.04); }
+
+  .kcard { background:linear-gradient(160deg,#ffffff 0%,#f7f8fa 52%,#e8eaee 100%);
+    box-shadow:inset 0 1px 0 #fff, 0 1px 3px rgba(0,0,0,.10); position:relative; }
+  .kcard::after { content:""; position:absolute; inset:0; pointer-events:none; z-index:3;
+    background:linear-gradient(115deg,transparent 38%,rgba(255,255,255,.85) 50%,transparent 62%);
+    transform:translateX(-130%); }
+  .kcard:hover::after { transform:translateX(130%); transition:transform .75s ease; }
+  .kcard.selected { outline:2px solid #18181b; outline-offset:2px; box-shadow:0 0 0 5px rgba(255,255,255,.7), 0 8px 24px rgba(0,0,0,.2); }
+
+  .pill-co  { background:linear-gradient(180deg,#5a5d66 0%,#18181b 55%,#09090b 100%); box-shadow:inset 0 1px 0 rgba(255,255,255,.35); }
+  .pill-biz { background:linear-gradient(180deg,#fafbfc 0%,#cbced5 52%,#a9aeb8 100%); border:1px solid #8d929b; line-height:15px;
+    box-shadow:inset 0 1px 0 #fff; }
+  .pill-me  { background:linear-gradient(180deg,#ffffff,#e9ebef); box-shadow:inset 0 1px 0 #fff; }
+  .pu-urgent, .pu-late { position:relative; overflow:hidden;
+    background:linear-gradient(180deg,#5a5d66 0%,#18181b 55%,#09090b 100%); box-shadow:inset 0 1px 0 rgba(255,255,255,.4); }
+  .pu-urgent::after, .pu-late::after { content:""; position:absolute; inset:0;
+    background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.6) 50%,transparent 70%);
+    transform:translateX(-130%); animation:shine 3.4s ease-in-out infinite; }
+  .pu-important { background:linear-gradient(180deg,#ffffff,#cfd3da); box-shadow:inset 0 1px 0 #fff; }
+  .pu-normal, .pu-date { background:linear-gradient(180deg,#fafafb,#e9ebef); }
+  .tag-pill { background:linear-gradient(180deg,#fff,#eceef1); }
+
+  .sec-col { background:rgba(255,255,255,.5); border:1px solid #a9adb6; border-radius:16px; padding:0 10px 8px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.9), 0 6px 22px rgba(0,0,0,.08); backdrop-filter:blur(6px);
+    transition:border-color .12s, box-shadow .12s; min-height:150px; }
+  .sec-col.over { border-color:#18181b; box-shadow:0 0 0 2px #18181b, 0 10px 30px rgba(0,0,0,.2); }
+  .sec-head { margin:0 -10px 10px; padding:11px 14px; border-radius:15px 15px 0 0; display:flex; align-items:center; gap:8px;
+    position:relative; overflow:hidden; }
+  .sec-head::after { content:""; position:absolute; inset:0; pointer-events:none;
+    background:linear-gradient(110deg,transparent 35%,rgba(255,255,255,.55) 50%,transparent 65%);
+    transform:translateX(-130%); animation:shine 6s ease-in-out infinite; }
+  .sec-head.todo { background:linear-gradient(180deg,#ffffff 0%,#e7e9ed 55%,#cdd0d7 100%); color:#18181b;
+    border-bottom:1px solid #a9adb6; box-shadow:inset 0 1px 0 #fff; }
+  .sec-head.wip  { background:linear-gradient(180deg,#8b8f99 0%,#51545c 50%,#34363b 100%); color:#fff;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.45); }
+  .sec-head.done { background:linear-gradient(180deg,#52525b 0%,#18181b 50%,#050506 100%); color:#fff;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.35); }
+  .sec-title { font-size:13px; font-weight:800; letter-spacing:.16em; }
+  .sec-count { min-width:22px; padding:0 7px; border-radius:999px; font-size:11px; font-weight:700; text-align:center;
+    line-height:20px; background:rgba(0,0,0,.12); }
+  .sec-head.wip .sec-count, .sec-head.done .sec-count { background:rgba(255,255,255,.22); }
+
+  .plan-day { background:linear-gradient(160deg,#fff,#eef0f3); border:1px solid #c4c7ce; }
+  .plan-day.has-content { background:linear-gradient(160deg,#f4f5f7,#dfe2e7); border-color:#8d929b; }
+  .plan-day.today { border-color:#18181b; box-shadow:0 0 0 1px #18181b; }
+
+  .delete-zone { position:fixed; left:var(--dz-left,0px); right:0; bottom:0; height:33vh; z-index:400;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+    background:linear-gradient(to top,rgba(220,38,38,.78) 0%,rgba(220,38,38,.42) 55%,rgba(220,38,38,0) 100%);
+    border-top:2px dashed rgba(185,28,28,.5); color:#450a0a; font-weight:800; font-size:15px; letter-spacing:.03em;
+    animation:dzin .18s ease-out; transition:background .12s, color .12s; }
+  .delete-zone.over { color:#fff;
+    background:linear-gradient(to top,rgba(185,28,28,.95) 0%,rgba(239,68,68,.62) 60%,rgba(239,68,68,.12) 100%);
+    box-shadow:inset 0 -40px 80px rgba(255,255,255,.12), 0 -8px 40px rgba(220,38,38,.5); }
+  .delete-zone svg { filter:drop-shadow(0 2px 6px rgba(127,29,29,.4)); }
+
+  @keyframes shine { 0%,55% { transform:translateX(-130%); } 100% { transform:translateX(130%); } }
+  @keyframes dzin { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .logo-chrome::after, .pu-urgent::after, .pu-late::after, .sec-head::after { animation:none; }
+  }
+`;
 
 const CAL_LABELS = [
   { id:"family",   ko:"가족",    color:"#18181b" },
@@ -214,21 +288,6 @@ const CAL_LABELS = [
   { id:"noupdate", ko:"미분류",  color:"#71717a" },
 ];
 const PERSONAL_LABELS = ["family","default","noupdate"];
-
-const BOARDS_DEF = [
-  { id:"work", title:"업무 칸반보드",
-    cols:[
-      { id:"todo",       ko:"할 일"   },
-      { id:"inprogress", ko:"진행 중"  },
-      { id:"done",       ko:"완료"    },
-    ]},
-  { id:"personal", title:"개인 주요사항",
-    cols:[
-      { id:"check", ko:"확인"    },
-      { id:"carry", ko:"챙길 것"  },
-      { id:"memo",  ko:"메모"    },
-    ]},
-];
 
 const HOLIDAYS: Record<string,string> = {
   "01-01":"신정","03-01":"삼일절","05-05":"어린이날","06-06":"현충일",
@@ -257,7 +316,9 @@ const PRIO_RANK:Record<string,number> = { urgent:0, important:1, normal:2 };
 
 function catOf(card:Card, boardId:string){ return card.category || (boardId==="personal"?"personal":"company"); }
 function localToday(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
-function isDoneCard(card:Card, boardId:string){ return boardId==="work" && card.colId==="done"; }
+// 상태: TO-DO / WIP / DONE (예전 개인 보드의 확인·챙길 것·메모는 TO-DO로 취급)
+function statusOf(card:Card):"todo"|"inprogress"|"done"{ return card.colId==="inprogress"||card.colId==="done"?card.colId:"todo"; }
+function isDoneCard(card:Card){ return statusOf(card)==="done"; }
 // 긴급도 칩: 날짜가 있으면 날짜, 없으면 긴급/중요/기본
 function urgencyChip(card:Card){
   const KO=["일","월","화","수","목","금","토"];
@@ -315,69 +376,6 @@ function useIsMobile() {
     return ()=>window.removeEventListener("resize",h);
   },[]);
   return m;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ProgressBar — colored segment (read-only display per board)
-// ─────────────────────────────────────────────────────────────────────────────
-function BoardProgressBar({cards,cols}:{cards:Card[];cols:{id:string;ko:string}[]}) {
-  const counts = cols.map(c=>({...c, n:cards.filter(k=>k.colId===c.id).length}));
-  const total = counts.reduce((s,c)=>s+c.n,0);
-  if (!total) return null;
-  return (
-    <div style={{display:"flex",height:4,borderRadius:3,overflow:"hidden",gap:1}}>
-      {counts.map(c=>{
-        const pct=(c.n/total)*100;
-        if(!pct) return null;
-        return <div key={c.id} title={`${c.ko}: ${c.n}`}
-          style={{flex:pct,background:COL_META[c.id]?.progress||"#a1a1aa",minWidth:2}}/>;
-      })}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CardProgressBar — draggable slider on a single card
-// ─────────────────────────────────────────────────────────────────────────────
-function CardProgressBar({value, onChange}:{value:number; onChange:(v:number)=>void}) {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const dragging = useRef(false);
-
-  const getVal=(clientX:number)=>{
-    const rect=trackRef.current!.getBoundingClientRect();
-    const pct=Math.max(0,Math.min(1,(clientX-rect.left)/rect.width));
-    return Math.round(pct*100);
-  };
-
-  const onMouseDown=(e:React.MouseEvent)=>{
-    e.stopPropagation(); dragging.current=true;
-    onChange(getVal(e.clientX));
-    const move=(ev:MouseEvent)=>{ if(dragging.current) onChange(getVal(ev.clientX)); };
-    const up=()=>{ dragging.current=false; window.removeEventListener("mousemove",move); window.removeEventListener("mouseup",up); };
-    window.addEventListener("mousemove",move); window.addEventListener("mouseup",up);
-  };
-  const onTouchStart=(e:React.TouchEvent)=>{
-    e.stopPropagation();
-    const move=(ev:TouchEvent)=>onChange(getVal(ev.touches[0].clientX));
-    const up=()=>{ window.removeEventListener("touchmove",move); window.removeEventListener("touchend",up); };
-    window.addEventListener("touchmove",move); window.addEventListener("touchend",up);
-    onChange(getVal(e.touches[0].clientX));
-  };
-
-  const color = value>=100?"#16a34a":value>=50?"#3b82f6":"#6366f1";
-  return (
-    <div style={{marginTop:6}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-        <span style={{fontSize:9.5,fontWeight:600,color:"var(--text-light)",letterSpacing:"0.04em"}}>PROGRESS</span>
-        <span style={{fontSize:10,fontWeight:700,color}}>{value}%</span>
-      </div>
-      <div ref={trackRef} className="prog-track"
-        onMouseDown={onMouseDown} onTouchStart={onTouchStart}
-        style={{cursor:"col-resize"}}>
-        <div className="prog-fill" style={{width:`${value}%`,background:color}}/>
-      </div>
-    </div>
-  );
 }
 
 // 카드 상단 진행률 바 — 마우스로 직접 드래그
@@ -546,7 +544,7 @@ function ChoiceGroup<T extends string>({options,value,onChange,allowClear}:{
             }}
             style={{padding:"5px 12px",borderRadius:999,fontSize:11.5,fontWeight:600,outline:"none",
               border:on?"1px solid #18181b":"1px solid #a1a1aa",
-              background:on?"#18181b":"#fff",color:on?"#fff":"#52525b",cursor:"pointer",
+              background:on?"linear-gradient(180deg,#52525b,#18181b 60%,#09090b)":"linear-gradient(180deg,#fff,#e4e6ea)",boxShadow:on?"inset 0 1px 0 rgba(255,255,255,.35)":"inset 0 1px 0 #fff",color:on?"#fff":"#52525b",cursor:"pointer",
               transition:"all .1s"}}
             className="panel-choice">
             {o.ko}
@@ -704,9 +702,8 @@ function SidePanel({card,boardId,onClose,onSave,onDelete,allTags}:{
             <button data-f="1"
               onClick={doSave}
               onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();doSave();}}}
-              className="panel-save"
-              style={{flex:1,padding:"9px",background:"#18181b",color:"#fff",borderRadius:8,
-                fontWeight:700,fontSize:12.5,border:"2px solid #18181b",cursor:"pointer"}}>
+              className="panel-save btn-dark"
+              style={{flex:1,padding:"9px",borderRadius:8,fontWeight:700,fontSize:12.5,cursor:"pointer"}}>
               {form.id?"저장":"등록"} <span style={{opacity:.5,fontWeight:500,fontSize:10.5,marginLeft:4}}>Enter</span>
             </button>
             {form.id&&(
@@ -723,173 +720,6 @@ function SidePanel({card,boardId,onClose,onSave,onDelete,allTags}:{
     </div>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// QuickAdd
-// ─────────────────────────────────────────────────────────────────────────────
-function QuickAdd({onAdd,onCancel}:{onAdd:(t:string)=>void;onCancel:()=>void}) {
-  const [val,setVal]=useState("");
-  const ref=useRef<HTMLInputElement>(null);
-  useEffect(()=>ref.current?.focus(),[]);
-  return (
-    <div style={{marginTop:4}}>
-      <input ref={ref} value={val} onChange={e=>setVal(e.target.value)}
-        placeholder="카드 제목 입력..."
-        className="quick-input"
-        onKeyDown={e=>{
-          if(e.key==="Enter"){e.preventDefault();if(val.trim())onAdd(val.trim());}
-          if(e.key==="Escape")onCancel();
-        }}/>
-      <div style={{display:"flex",gap:4,marginTop:5}}>
-        <button onClick={()=>{if(val.trim())onAdd(val.trim());}}
-          style={{padding:"4px 12px",background:"var(--n900)",color:"#fff",borderRadius:5,fontSize:11,fontWeight:600}}>추가</button>
-        <button onClick={onCancel} style={{padding:"4px 8px",color:"var(--text-sub)",fontSize:11}}>취소</button>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Board
-// ─────────────────────────────────────────────────────────────────────────────
-function Board({def,cards,collapsed,onToggleCollapse,onCardClick,onQuickAdd,onDrop,
-  activeTagFilter,doneSearch,setDoneSearch,onProgressChange}:{
-  def:typeof BOARDS_DEF[0]; cards:Card[]; collapsed:boolean;
-  onToggleCollapse:()=>void;
-  onCardClick:(c:Card)=>void; onQuickAdd:(colId:string,title:string,boardId:string)=>void;
-  onDrop:(targetColId:string,afterCardId:string|null,boardId:string)=>void;
-  activeTagFilter:string|null; doneSearch:string; setDoneSearch:(s:string)=>void;
-  onProgressChange:(cardId:string,boardId:string,v:number)=>void;
-}) {
-  const [dragOverCol,setDragOverCol]=useState<string|null>(null);
-  const [dragOverCard,setDragOverCard]=useState<string|null>(null);
-  const [quickAddCol,setQuickAddCol]=useState<string|null>(null);
-
-  const getCards=(colId:string)=>{
-    let f=cards.filter(c=>c.colId===colId);
-    if(activeTagFilter) f=f.filter(c=>(c.tags||[]).includes(activeTagFilter));
-    if(def.id==="work"&&colId==="done"&&doneSearch){
-      const q=doneSearch.toLowerCase();
-      f=f.filter(c=>c.title.toLowerCase().includes(q)||(c.note||"").toLowerCase().includes(q)||(c.tags||[]).some(t=>t.toLowerCase().includes(q)));
-    }
-    return f;
-  };
-
-  const onDragStart=(e:React.DragEvent,card:Card)=>{gDrag={cardId:card.id,boardId:def.id,card};e.dataTransfer.effectAllowed="move";};
-  const onDragEnd=()=>{gDrag={cardId:null,boardId:null,card:null};setDragOverCol(null);setDragOverCard(null);};
-  const onDragOver=(e:React.DragEvent,colId:string,cardId?:string)=>{e.preventDefault();e.stopPropagation();setDragOverCol(colId);setDragOverCard(cardId||null);};
-  const onDropH=(e:React.DragEvent,colId:string,afterCardId:string|null=null)=>{
-    e.preventDefault();e.stopPropagation();setDragOverCol(null);setDragOverCard(null);
-    if(!gDrag.cardId) return;
-    onDrop(colId,afterCardId,def.id);
-  };
-  return (
-    <div style={{marginBottom:0}}>
-      {/* Board header — clickable to collapse */}
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:collapsed?0:8,cursor:"pointer",userSelect:"none"}}
-        onClick={onToggleCollapse}>
-        <button style={{
-          width:18,height:18,borderRadius:4,border:"1px solid var(--border)",
-          display:"flex",alignItems:"center",justifyContent:"center",
-          background:"var(--surface)",fontSize:10,color:"var(--text-sub)",
-          transform:collapsed?"rotate(-90deg)":"rotate(0deg)",transition:"transform .15s",flexShrink:0,
-        }}>▾</button>
-        <span style={{fontSize:11,fontWeight:600,color:"var(--text-sub)",letterSpacing:"0.05em",textTransform:"uppercase"}}>
-          {def.title}
-        </span>
-        <div style={{flex:1,maxWidth:100}}><BoardProgressBar cards={cards} cols={def.cols}/></div>
-        <span style={{fontSize:10,color:"var(--text-light)",fontWeight:500}}>{cards.length}개</span>
-      </div>
-
-      {/* Columns — hidden when collapsed */}
-      {!collapsed&&(
-        <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:4}}>
-          {def.cols.map(col=>{
-            const colCards=getCards(col.id);
-            const meta=COL_META[col.id];
-            const isDone=def.id==="work"&&col.id==="done";
-            const isOver=dragOverCol===col.id;
-            return (
-              <div key={col.id}
-                onDragOver={e=>onDragOver(e,col.id)} onDrop={e=>onDropH(e,col.id)}
-                style={{
-                  flex:"1 1 0",minWidth:165,maxWidth:290,
-                  background:"#f5f5f5",
-                  borderRadius:6,
-                  padding:"9px 8px 7px",
-                  border:`1.5px solid ${isOver?"#111":"#d1d1d1"}`,
-                  transition:"border-color .1s",
-                }}>
-                {/* Col header */}
-                <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:7}}>
-                  <span style={{width:6,height:6,borderRadius:"50%",background:meta?.dot||"#a1a1aa",flexShrink:0,display:"inline-block"}}/>
-                  <span style={{fontSize:12,fontWeight:600,color:"var(--text)",flex:1,letterSpacing:"-0.01em"}}>{col.ko}</span>
-                  <span style={{fontSize:10,color:"var(--text-light)",fontWeight:500,minWidth:14,textAlign:"right"}}>{colCards.length}</span>
-                  <button onClick={e=>{e.stopPropagation();setQuickAddCol(quickAddCol===col.id?null:col.id);}}
-                    title="카드 추가 (+)"
-                    style={{marginLeft:2,fontSize:16,lineHeight:1,color:"var(--text-light)",padding:"0 2px",
-                      fontWeight:400,borderRadius:4,transition:"color .1s"}}
-                    onMouseOver={e=>(e.currentTarget.style.color="var(--accent)")}
-                    onMouseOut={e=>(e.currentTarget.style.color="var(--text-light)")}>
-                    +
-                  </button>
-                </div>
-                {/* Done search */}
-                {isDone&&(
-                  <input value={doneSearch} onChange={e=>setDoneSearch(e.target.value)}
-                    placeholder="완료 검색…"
-                    style={{width:"100%",border:"1px solid var(--border)",borderRadius:5,padding:"3px 8px",
-                      background:"var(--surface)",color:"var(--text)",fontSize:11,outline:"none",marginBottom:6}}/>
-                )}
-                {/* Cards */}
-                {colCards.map(card=>{
-                  const prog=card.progress??0;
-                  return (
-                    <div key={card.id} data-card="1"
-                      className={`kcard${gDrag.cardId===card.id?" dragging":""}${dragOverCard===card.id?" drag-over":""}`}
-                      draggable
-                      onDragStart={e=>onDragStart(e,card)} onDragEnd={onDragEnd}
-                      onDragOver={e=>onDragOver(e,col.id,card.id)} onDrop={e=>onDropH(e,col.id,card.id)}
-                      onClick={()=>onCardClick(card)}
-                      style={{position:"relative",overflow:"hidden",opacity:isDone?.65:1}}>
-                      <ProgTopBar prog={prog} onChange={v=>onProgressChange(card.id,def.id,v)}/>
-                      <div style={{marginTop:5}}><CardHead card={card} boardId={def.id}/></div>
-                      <div style={{marginTop:7,fontSize:12.5,color:"#111",lineHeight:1.45,wordBreak:"break-word",
-                        fontWeight:500,textDecoration:isDone?"line-through":"none"}}>{card.title}</div>
-                      {(card.tags||[]).length>0&&(
-                        <div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:6}}>
-                          {(card.tags||[]).map(t=><span key={t} className="tag-pill">{t}</span>)}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-                {/* Drop zone */}
-                <div onDragOver={e=>onDragOver(e,col.id)} onDrop={e=>onDropH(e,col.id,null)}
-                  style={{minHeight:10,borderRadius:4,background:isOver&&!dragOverCard?"rgba(0,0,0,.06)":"transparent"}}/>
-                {/* Quick add */}
-                {quickAddCol===col.id
-                  ? <QuickAdd onAdd={title=>{onQuickAdd(col.id,title,def.id);setQuickAddCol(null);}}
-                      onCancel={()=>setQuickAddCol(null)}/>
-                  : <button onClick={e=>{e.stopPropagation();setQuickAddCol(col.id);}}
-                      style={{display:"flex",alignItems:"center",gap:4,marginTop:5,padding:"3px 4px",
-                        borderRadius:5,color:"var(--text-light)",fontSize:11,width:"100%",transition:"color .1s"}}
-                      onMouseOver={e=>{e.currentTarget.style.color="var(--text)";}}
-                      onMouseOut={e=>{e.currentTarget.style.color="var(--text-light)";}}>
-                      <span style={{fontSize:14,fontWeight:300,lineHeight:1}}>+</span> 새 카드
-                    </button>
-                }
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Helper to use CSS vars in inline styles
-function var_(name:string) { return `var(${name})`; }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mandala — 9×9 grid (3×3 blocks of 3×3 cells)
@@ -991,185 +821,127 @@ function MandalaView() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PlanningView — monthly content planning calendar
-// ─────────────────────────────────────────────────────────────────────────────
-function PlanningView() {
-  const today = new Date();
-  const [view,setView] = useState({y:today.getFullYear(),m:today.getMonth()});
-  // planData: { "YYYY-MM-DD": "text" }
-  const [planData,setPlanData] = useState<Record<string,string>>(()=>{
-    try { return JSON.parse(localStorage.getItem("planning_data")||"{}"); } catch { return {}; }
-  });
-  const [editingDay,setEditingDay] = useState<string|null>(null);
-  const [editVal,setEditVal] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const toKey=(y:number,m:number,d:number)=>
-    `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-
-  const todayKey = toKey(today.getFullYear(),today.getMonth(),today.getDate());
-  const firstDay = new Date(view.y,view.m,1).getDay();
-  const daysInMonth = new Date(view.y,view.m+1,0).getDate();
-  const cells:(number|null)[] = [...Array(firstDay).fill(null),...Array.from({length:daysInMonth},(_,i)=>i+1)];
-  while(cells.length%7!==0) cells.push(null);
-
-  const WK=["일","월","화","수","목","금","토"];
-
-  const openEdit=(key:string)=>{
-    setEditingDay(key);
-    setEditVal(planData[key]||"");
-    setTimeout(()=>{textareaRef.current?.focus();},60);
-  };
-  const commitEdit=()=>{
-    if(!editingDay) return;
-    const trimmed=editVal.trim();
-    setPlanData(prev=>{
-      const next={...prev};
-      if(trimmed) next[editingDay]=trimmed; else delete next[editingDay];
-      localStorage.setItem("planning_data",JSON.stringify(next));
-      return next;
-    });
-    setEditingDay(null);
-  };
-
-  return (
-    <div>
-      {/* Month nav */}
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-        <button onClick={()=>setView(v=>v.m===0?{y:v.y-1,m:11}:{y:v.y,m:v.m-1})}
-          style={{fontSize:15,color:"var(--text-sub)",padding:"2px 6px",borderRadius:4,lineHeight:1}}>‹</button>
-        <span style={{fontSize:12,fontWeight:600,color:"var(--text)",minWidth:70,textAlign:"center"}}>
-          {view.y}. {String(view.m+1).padStart(2,"0")}
-        </span>
-        <button onClick={()=>setView(v=>v.m===11?{y:v.y+1,m:0}:{y:v.y,m:v.m+1})}
-          style={{fontSize:15,color:"var(--text-sub)",padding:"2px 6px",borderRadius:4,lineHeight:1}}>›</button>
-        <button onClick={()=>setView({y:today.getFullYear(),m:today.getMonth()})}
-          style={{fontSize:10,color:"var(--text-light)",padding:"2px 7px",borderRadius:4,
-            border:"1px solid var(--border)",marginLeft:2,fontWeight:500}}>오늘</button>
-      </div>
-
-      <div className="plan-cal-grid">
-        {/* Day-of-week headers */}
-        {WK.map((d,i)=>(
-          <div key={d} className="plan-cal-header"
-            style={{color:i===0?"var(--red)":i===6?"var(--blue)":"var(--text-light)"}}>
-            {d}
-          </div>
-        ))}
-
-        {/* Day cells */}
-        {cells.map((day,i)=>{
-          if(!day) return <div key={i} className="plan-day empty"/>;
-          const key=toKey(view.y,view.m,day);
-          const text=planData[key]||"";
-          const dow=(firstDay+day-1)%7;
-          const isSun=dow===0, isSat=dow===6;
-          const mmdd=`${String(view.m+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-          const isHol=!!HOLIDAYS[mmdd];
-          const isToday=key===todayKey;
-          const isEditing=editingDay===key;
-
-          return (
-            <div key={i}
-              className={`plan-day${isToday?" today":""}${text?" has-content":""}`}
-              onClick={()=>{ if(!isEditing) openEdit(key); }}>
-              {/* Day number */}
-              <div className="plan-day-num">
-                <span style={{
-                  color: isToday?"var(--accent)":(isHol||isSun)?"var(--red)":isSat?"var(--blue)":"var(--text-light)",
-                  fontWeight: isToday?700:500,
-                  background: isToday?"var(--accent-lt)":"transparent",
-                  borderRadius:3, padding:isToday?"0 3px":"0",
-                }}>{day}</span>
-                {isHol&&<span style={{fontSize:8,color:"var(--red)",maxWidth:30,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{HOLIDAYS[mmdd]}</span>}
-              </div>
-
-              {/* Content text (display mode) */}
-              {!isEditing&&text&&(
-                <div className="plan-day-text">{text}</div>
-              )}
-
-              {/* Inline editor */}
-              {isEditing&&(
-                <div className="plan-day-editing" onClick={e=>e.stopPropagation()}>
-                  <div style={{fontSize:10,fontWeight:600,color:"var(--accent)",letterSpacing:"-0.01em"}}>
-                    {view.m+1}/{day}
-                  </div>
-                  <textarea ref={textareaRef} value={editVal} onChange={e=>setEditVal(e.target.value)}
-                    placeholder="플래닝 메모…"
-                    rows={3}
-                    onKeyDown={e=>{
-                      if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();commitEdit();}
-                      if(e.key==="Escape"){setEditingDay(null);}
-                    }}
-                    onBlur={commitEdit}/>
-                  <div style={{display:"flex",gap:3,justifyContent:"flex-end"}}>
-                    <button onClick={commitEdit}
-                      style={{fontSize:9,padding:"2px 7px",background:"var(--n900)",color:"#fff",borderRadius:4,fontWeight:600}}>저장</button>
-                    <button onClick={e=>{e.stopPropagation();setEditingDay(null);}}
-                      style={{fontSize:9,padding:"2px 6px",color:"var(--text-light)",borderRadius:4}}>취소</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      <div style={{marginTop:6,fontSize:10,color:"var(--text-light)"}}>
-        날짜 클릭 → 메모 입력 · Enter 저장 · Shift+Enter 줄바꿈 · ESC 취소
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ListView — 업무 + 개인 전체 리스트 (기본 화면)
+// 칸반 — 회사 + Biz + 개인을 TO-DO / WIP / DONE 3개 섹션으로
 // ─────────────────────────────────────────────────────────────────────────────
 type Item = { card:Card; boardId:string };
 const itemKey = (i:Item) => `${i.boardId}:${i.card.id}`;
+const STATUS_RANK:Record<string,number> = { todo:0, inprogress:1, done:2 };
 
-function colName(boardId:string,colId:string){
-  return BOARDS_DEF.find(b=>b.id===boardId)?.cols.find(c=>c.id===colId)?.ko||"";
-}
-
-function ListView({items,selectedKey,onSelect,onOpen,onProgressChange,isMobile}:{
-  items:Item[]; selectedKey:string|null; onSelect:(k:string)=>void;
-  onOpen:(i:Item)=>void; onProgressChange:(cardId:string,boardId:string,v:number)=>void; isMobile:boolean;
+function CardTile({it,selected,onSelect,onOpen,onProgressChange}:{
+  it:Item; selected:boolean; onSelect:(k:string)=>void;
+  onOpen:(i:Item)=>void; onProgressChange:(cardId:string,boardId:string,v:number)=>void;
 }) {
-  if(!items.length) return (
-    <div style={{textAlign:"center",color:"var(--text-light)",padding:"70px 0",fontSize:13,lineHeight:1.9}}>
-      카드가 없어요<br/>
-      <span className="kbd">+</span> 키를 눌러 새 카드를 추가해보세요
+  const {card,boardId}=it;
+  const k=itemKey(it);
+  const done=isDoneCard(card);
+  const prog=card.progress??0;
+  return (
+    <div data-key={k} data-card="1" tabIndex={-1}
+      className={`kcard${selected?" selected":""}`}
+      draggable
+      onDragStart={e=>{gDrag={cardId:card.id,boardId,card};e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",card.id);}}
+      onDragEnd={()=>{gDrag={cardId:null,boardId:null,card:null};}}
+      onClick={()=>{onSelect(k);onOpen(it);}}
+      style={{position:"relative",overflow:"hidden",opacity:done?.62:1}}>
+      <ProgTopBar prog={prog} onChange={v=>onProgressChange(card.id,boardId,v)}/>
+      <div style={{marginTop:5}}><CardHead card={card} boardId={boardId}/></div>
+      <div style={{marginTop:8,fontSize:13,color:"#111",lineHeight:1.45,wordBreak:"break-word",fontWeight:500,
+        textDecoration:done?"line-through":"none"}}>{card.title}</div>
+      {((card.tags||[]).length>0||prog>0)&&(
+        <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:4,marginTop:8}}>
+          {(card.tags||[]).map(t=><span key={t} className="tag-pill">{t}</span>)}
+          {prog>0&&<span style={{marginLeft:"auto",fontSize:10,color:"#71717a",fontWeight:700}}>{prog}%</span>}
+        </div>
+      )}
     </div>
   );
+}
+
+const SECTIONS = [
+  { id:"todo",       cls:"todo", ko:"TO-DO", sub:"해야 할 일" },
+  { id:"inprogress", cls:"wip",  ko:"WIP",   sub:"진행 중"   },
+  { id:"done",       cls:"done", ko:"DONE",  sub:"완료"      },
+] as const;
+
+function KanbanView({items,selectedKey,onSelect,onOpen,onProgressChange,onMove,onAdd,isMobile}:{
+  items:Item[]; selectedKey:string|null; onSelect:(k:string)=>void;
+  onOpen:(i:Item)=>void; onProgressChange:(cardId:string,boardId:string,v:number)=>void;
+  onMove:(status:string)=>void; onAdd:(status:string)=>void; isMobile:boolean;
+}) {
+  const [over,setOver]=useState<string|null>(null);
   return (
-    <div style={{display:"grid",gap:"0 12px",
-      gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(280px,1fr))",alignItems:"start"}}>
-      {items.map(it=>{
-        const {card,boardId}=it;
-        const k=itemKey(it);
-        const done=isDoneCard(card,boardId);
-        const prog=card.progress??0;
+    <div style={{display:"grid",gap:14,alignItems:"start",
+      gridTemplateColumns:isMobile?"1fr":"repeat(3,minmax(0,1fr))"}}>
+      {SECTIONS.map(sec=>{
+        const list=items.filter(i=>statusOf(i.card)===sec.id)
+          .sort((a,b)=>urgencySortKey(a.card).localeCompare(urgencySortKey(b.card)));
         return (
-          <div key={k} data-key={k} data-card="1" tabIndex={-1}
-            className={`kcard${selectedKey===k?" selected":""}${gDrag.cardId===card.id?" dragging":""}`}
-            draggable
-            onDragStart={e=>{gDrag={cardId:card.id,boardId,card};e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",card.id);}}
-            onDragEnd={()=>{gDrag={cardId:null,boardId:null,card:null};}}
-            onClick={()=>{onSelect(k);onOpen(it);}}
-            style={{position:"relative",overflow:"hidden",opacity:done?.6:1}}>
-            <ProgTopBar prog={prog} onChange={v=>onProgressChange(card.id,boardId,v)}/>
-            <div style={{marginTop:5}}><CardHead card={card} boardId={boardId}/></div>
-            <div style={{marginTop:8,fontSize:13,color:"#111",lineHeight:1.45,wordBreak:"break-word",fontWeight:500,
-              textDecoration:done?"line-through":"none"}}>{card.title}</div>
-            <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:4,marginTop:8}}>
-              <span style={{fontSize:10,color:"#71717a",fontWeight:500}}>{colName(boardId,card.colId)}</span>
-              {(card.tags||[]).map(t=><span key={t} className="tag-pill">{t}</span>)}
-              {prog>0&&<span style={{marginLeft:"auto",fontSize:10,color:"#71717a",fontWeight:600}}>{prog}%</span>}
+          <div key={sec.id} className={`sec-col${over===sec.id?" over":""}`}
+            onDragOver={e=>{e.preventDefault();setOver(sec.id);}}
+            onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node))setOver(null);}}
+            onDrop={e=>{e.preventDefault();setOver(null);onMove(sec.id);}}>
+            <div className={`sec-head ${sec.cls}`}>
+              <span className="sec-title">{sec.ko}</span>
+              <span style={{fontSize:11,opacity:.7,fontWeight:500}}>{sec.sub}</span>
+              <span className="sec-count" style={{marginLeft:"auto"}}>{list.length}</span>
+              <button onClick={()=>onAdd(sec.id)} title={`${sec.ko}에 카드 추가`}
+                style={{width:22,height:22,borderRadius:7,fontSize:16,lineHeight:1,color:"inherit",
+                  border:"1px solid currentColor",opacity:.75,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
             </div>
+            {list.map(it=>(
+              <CardTile key={itemKey(it)} it={it} selected={selectedKey===itemKey(it)}
+                onSelect={onSelect} onOpen={onOpen} onProgressChange={onProgressChange}/>
+            ))}
+            {!list.length&&(
+              <div style={{textAlign:"center",color:"#a1a1aa",fontSize:11.5,padding:"26px 0"}}>
+                {over===sec.id?"여기에 놓기":"비어 있음"}
+              </div>
+            )}
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 개인 카드 정리 — 기본 루틴 등을 골라서 한 번에 삭제
+// ─────────────────────────────────────────────────────────────────────────────
+function CleanupModal({cards,onClose,onDelete}:{
+  cards:Card[]; onClose:()=>void; onDelete:(ids:string[])=>void;
+}) {
+  const [sel,setSel]=useState<Set<string>>(new Set());
+  const toggle=(id:string)=>setSel(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n;});
+  const allOn=cards.length>0&&sel.size===cards.length;
+  return (
+    <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:500,background:"rgba(24,24,27,.4)",backdropFilter:"blur(3px)",
+      display:"flex",alignItems:"center",justifyContent:"center",padding:16}}
+      onKeyDown={e=>{if(e.key==="Escape"){e.stopPropagation();onClose();}}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#fff",border:"1px solid #18181b",borderRadius:16,padding:"18px 20px",
+        width:420,maxWidth:"100%",maxHeight:"85vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+          <span style={{fontWeight:700,fontSize:14}}>개인 카드 정리</span>
+          <button onClick={onClose} style={{fontSize:18,color:"#71717a"}}>×</button>
+        </div>
+        <div style={{fontSize:11,color:"#71717a",marginBottom:10}}>삭제할 카드를 골라주세요. 구글 시트에서도 함께 삭제됩니다.</div>
+        <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,fontWeight:600,padding:"6px 0",borderBottom:"1px solid #e4e4e7",cursor:"pointer"}}>
+          <input type="checkbox" checked={allOn} onChange={()=>setSel(allOn?new Set():new Set(cards.map(c=>c.id)))}/>
+          전체 선택 ({cards.length})
+        </label>
+        <div style={{overflowY:"auto",flex:1,margin:"4px 0 12px"}}>
+          {cards.map(c=>(
+            <label key={c.id} style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,padding:"6px 0",cursor:"pointer"}}>
+              <input type="checkbox" checked={sel.has(c.id)} onChange={()=>toggle(c.id)}/>
+              <span style={{flex:1,wordBreak:"break-word"}}>{c.title}</span>
+            </label>
+          ))}
+          {!cards.length&&<div style={{padding:"24px 0",textAlign:"center",color:"#a1a1aa",fontSize:12}}>개인 카드가 없어요</div>}
+        </div>
+        <button disabled={!sel.size} onClick={()=>onDelete(Array.from(sel))} className="btn-dark"
+          style={{padding:"9px",borderRadius:8,fontWeight:700,fontSize:12.5,opacity:sel.size?1:.4}}>
+          {sel.size}개 삭제
+        </button>
+      </div>
     </div>
   );
 }
@@ -1183,13 +955,12 @@ const SHORTCUTS:[string[],string][] = [
   [["←","→"],"구분 / 긴급도 / 라벨 선택"],
   [["Enter"],"다음 항목으로 · 제목에서는 바로 등록"],
   [["Ctrl","Enter"],"패널 어디서든 저장"],
-  [["Esc"],"패널 닫기 · 선택 해제"],
-  [["↑","↓"],"리스트에서 카드 선택 (j / k 도 가능)"],
+  [["Esc"],"패널·창 닫고 원래 화면으로"],
+  [["↑","↓"],"카드 선택 (j / k 도 가능)"],
   [["Enter"],"선택한 카드 편집"],
   [["Delete"],"선택한 카드 삭제 (Backspace 도 가능)"],
   [["Ctrl","Z"],"방금 삭제한 카드 되돌리기"],
   [["1","2","3","4"],"전체 / 회사 / Biz / 개인 보기"],
-  [["B"],"전체 리스트 ↔ 보드 전환"],
   [["?"],"이 도움말 열기·닫기"],
 ];
 function HelpOverlay({onClose}:{onClose:()=>void}) {
@@ -1211,9 +982,147 @@ function HelpOverlay({onClose}:{onClose:()=>void}) {
           </div>
         ))}
         <div style={{marginTop:12,fontSize:11,color:"#a1a1aa",lineHeight:1.6}}>
-          카드를 마우스로 끌어 화면 아래 <b>삭제</b> 영역에 놓아도 삭제돼요. 삭제 후 6초 안에 되돌릴 수 있어요.
+          카드를 끌면 화면 아래쪽 1/3에 붉은 삭제 영역이 나타나요. 아무 곳에나 놓으면 삭제되고, 6초 안에 되돌릴 수 있어요.
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PlanningView — 월간 플래닝. 날짜를 누르면 별도 입력창이 열리고, 입력한 내용은 TO-DO로 추가
+// ─────────────────────────────────────────────────────────────────────────────
+function PlanningView({onAddTasks,isMobile}:{
+  onAddTasks:(lines:string[],date:string,category:"company"|"biz"|"personal")=>void; isMobile:boolean;
+}) {
+  const today = new Date();
+  const [view,setView] = useState({y:today.getFullYear(),m:today.getMonth()});
+  const [planData,setPlanData] = useState<Record<string,string>>(()=>{
+    try { return JSON.parse(localStorage.getItem("planning_data")||"{}"); } catch { return {}; }
+  });
+  const [editingDay,setEditingDay] = useState<string|null>(null);
+  const [editVal,setEditVal] = useState("");
+  const [editCat,setEditCat] = useState<"company"|"biz"|"personal">("company");
+  const taRef = useRef<HTMLTextAreaElement>(null);
+
+  const toKey=(y:number,m:number,d:number)=>`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+  const todayKey = toKey(today.getFullYear(),today.getMonth(),today.getDate());
+  const firstDay = new Date(view.y,view.m,1).getDay();
+  const daysInMonth = new Date(view.y,view.m+1,0).getDate();
+  const cells:(number|null)[] = [...Array(firstDay).fill(null),...Array.from({length:daysInMonth},(_,i)=>i+1)];
+  while(cells.length%7!==0) cells.push(null);
+  const WK=["일","월","화","수","목","금","토"];
+
+  const openEdit=(key:string)=>{
+    setEditingDay(key);
+    setEditVal(planData[key]||"");
+    setTimeout(()=>taRef.current?.focus(),60);
+  };
+  const splitLines=(t:string)=>t.split("\n").map(x=>x.trim()).filter(Boolean);
+  const commit=()=>{
+    if(!editingDay) return;
+    const oldLines=new Set(splitLines(planData[editingDay]||""));
+    const lines=splitLines(editVal);
+    const added=lines.filter(l=>!oldLines.has(l));
+    const text=lines.join("\n");
+    setPlanData(prev=>{
+      const next={...prev};
+      if(text) next[editingDay]=text; else delete next[editingDay];
+      localStorage.setItem("planning_data",JSON.stringify(next));
+      return next;
+    });
+    if(added.length) onAddTasks(added,editingDay,editCat);
+    setEditingDay(null);
+  };
+
+  const [ey,em,ed]=(editingDay||"0-0-0").split("-").map(Number);
+
+  return (
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+        <button onClick={()=>setView(v=>v.m===0?{y:v.y-1,m:11}:{y:v.y,m:v.m-1})}
+          style={{fontSize:18,color:"var(--text-sub)",padding:"2px 8px",borderRadius:4,lineHeight:1}}>‹</button>
+        <span style={{fontSize:13,fontWeight:700,color:"var(--text)",minWidth:80,textAlign:"center"}}>
+          {view.y}. {String(view.m+1).padStart(2,"0")}
+        </span>
+        <button onClick={()=>setView(v=>v.m===11?{y:v.y+1,m:0}:{y:v.y,m:v.m+1})}
+          style={{fontSize:18,color:"var(--text-sub)",padding:"2px 8px",borderRadius:4,lineHeight:1}}>›</button>
+        <button onClick={()=>setView({y:today.getFullYear(),m:today.getMonth()})} className="btn-light"
+          style={{fontSize:10.5,padding:"3px 10px",borderRadius:999,marginLeft:2,fontWeight:600}}>오늘</button>
+      </div>
+
+      <div className="plan-cal-grid">
+        {WK.map((d,i)=>(
+          <div key={d} className="plan-cal-header"
+            style={{color:i===0?"var(--red)":i===6?"#52525b":"var(--text-light)"}}>{d}</div>
+        ))}
+        {cells.map((day,i)=>{
+          if(!day) return <div key={i} className="plan-day empty"/>;
+          const key=toKey(view.y,view.m,day);
+          const text=planData[key]||"";
+          const dow=(firstDay+day-1)%7;
+          const mmdd=`${String(view.m+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+          const isHol=!!HOLIDAYS[mmdd];
+          const isToday=key===todayKey;
+          return (
+            <div key={i} className={`plan-day${isToday?" today":""}${text?" has-content":""}`}
+              style={{minHeight:isMobile?58:72}}
+              onClick={()=>openEdit(key)}>
+              <div className="plan-day-num">
+                <span style={{
+                  color:isToday?"#fff":(isHol||dow===0)?"var(--red)":"var(--text-sub)",
+                  fontWeight:isToday?700:500,
+                  background:isToday?"#18181b":"transparent",
+                  borderRadius:999,padding:isToday?"1px 6px":"0"}}>{day}</span>
+                {isHol&&<span style={{fontSize:8,color:"var(--red)",maxWidth:30,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{HOLIDAYS[mmdd]}</span>}
+              </div>
+              {text&&<div className="plan-day-text">{text.split("\n").join(" · ")}</div>}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{marginTop:8,fontSize:10.5,color:"var(--text-light)"}}>
+        날짜를 누르면 입력창이 열려요 · 한 줄에 하나씩 적으면 TO-DO 카드로 자동 추가돼요
+      </div>
+
+      {editingDay&&(
+        <div data-panel="1" onClick={()=>setEditingDay(null)}
+          onKeyDown={e=>{
+            if(e.key==="Escape"){e.stopPropagation();setEditingDay(null);}
+            if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();commit();}
+          }}
+          style={{position:"fixed",inset:0,zIndex:350,background:"rgba(24,24,27,.4)",backdropFilter:"blur(3px)",
+            display:"flex",alignItems:isMobile?"flex-end":"center",justifyContent:"center"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#fff",width:isMobile?"100%":400,maxWidth:"100%",
+            borderRadius:isMobile?"20px 20px 0 0":16,border:"1px solid #18181b",padding:"16px 18px calc(16px + env(safe-area-inset-bottom))",
+            boxShadow:"0 -10px 50px rgba(0,0,0,.3)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <span style={{fontWeight:700,fontSize:14}}>
+                {em}/{ed} ({WK[new Date(ey,em-1,ed).getDay()]}) 플래닝
+              </span>
+              <button tabIndex={-1} onClick={()=>setEditingDay(null)} style={{fontSize:20,color:"#71717a",lineHeight:1}}>×</button>
+            </div>
+            <textarea ref={taRef} data-f="1" value={editVal} onChange={e=>setEditVal(e.target.value)} rows={5}
+              placeholder={"한 줄에 하나씩 입력\n예) 주간 보고 준비"}
+              className="panel-field-input"
+              style={{width:"100%",border:"1px solid #1a1a1a",borderRadius:10,padding:"10px 12px",
+                fontSize:16,lineHeight:1.5,resize:"none",background:"#fff",color:"#1a1a1a",fontFamily:"inherit"}}/>
+            <div style={{margin:"12px 0 6px",fontSize:10,fontWeight:600,color:"#71717a",letterSpacing:"0.07em"}}>
+              새로 적은 줄은 이 구분의 TO-DO 카드로 추가돼요
+            </div>
+            <ChoiceGroup options={CATEGORIES.map(c=>({id:c.id,ko:c.ko}))} value={editCat}
+              onChange={v=>v&&setEditCat(v)}/>
+            <div style={{display:"flex",gap:8,marginTop:14}}>
+              <button data-f="1" onClick={commit} className="btn-dark"
+                style={{flex:1,padding:"11px",borderRadius:10,fontWeight:700,fontSize:13.5}}>
+                저장 <span style={{opacity:.5,fontWeight:500,fontSize:10.5}}>Ctrl+Enter</span>
+              </button>
+              <button onClick={()=>setEditingDay(null)} className="btn-light"
+                style={{padding:"11px 16px",borderRadius:10,fontWeight:600,fontSize:13.5}}>취소</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1222,9 +1131,11 @@ function HelpOverlay({onClose}:{onClose:()=>void}) {
 // App
 // ─────────────────────────────────────────────────────────────────────────────
 type CatFilter = "all"|"company"|"biz"|"personal";
+type ViewId = "kanban"|"mandala"|"planning";
 const CAT_FILTERS:{id:CatFilter;ko:string}[] = [
   {id:"all",ko:"전체"},{id:"company",ko:"회사"},{id:"biz",ko:"Biz"},{id:"personal",ko:"개인"},
 ];
+const SIDEBAR_W = 214;
 
 export default function App() {
   const isMobile = useIsMobile();
@@ -1234,23 +1145,17 @@ export default function App() {
   const [editCard,setEditCard] = useState<Card|null>(null);
   const [editBoardId,setEditBoardId] = useState("work");
   const [showPanel,setShowPanel] = useState(false);
-  const [doneSearch,setDoneSearch] = useState("");
   const [activeTagFilter,setActiveTagFilter] = useState<string|null>(null);
-  const [view,setView] = useState<"list"|"board">("list");
+  const [view,setView] = useState<ViewId>("kanban");
   const [catFilter,setCatFilter] = useState<CatFilter>("all");
   const [selectedKey,setSelectedKey] = useState<string|null>(null);
   const [showHelp,setShowHelp] = useState(false);
+  const [showCleanup,setShowCleanup] = useState(false);
   const [dragging,setDragging] = useState(false);
   const [trashOver,setTrashOver] = useState(false);
   const [toast,setToast] = useState<{msg:string;undo?:()=>void}|null>(null);
-  const [collapsedBoards,setCollapsedBoards] = useState<Record<string,boolean>>(()=>{
-    try { return JSON.parse(localStorage.getItem("board_collapsed")||"{}"); } catch { return {}; }
-  });
-  const [collapsedMandala,setCollapsedMandala] = useState<boolean>(()=>{
-    try { return JSON.parse(localStorage.getItem("mandala_collapsed")||"false"); } catch { return false; }
-  });
-  const [collapsedPlanning,setCollapsedPlanning] = useState<boolean>(()=>{
-    try { return JSON.parse(localStorage.getItem("planning_collapsed")||"true"); } catch { return true; }
+  const [kanbanOpen,setKanbanOpen] = useState<boolean>(()=>{
+    try { return JSON.parse(localStorage.getItem("kanban_nav_open")||"true"); } catch { return true; }
   });
 
   const inflight = useRef(0);
@@ -1258,28 +1163,12 @@ export default function App() {
   const progTimers = useRef<Record<string,ReturnType<typeof setTimeout>>>({});
   const toastTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
 
-  const toggleBoardCollapse=(id:string)=>{
-    setCollapsedBoards(prev=>{
-      const next={...prev,[id]:!prev[id]};
-      localStorage.setItem("board_collapsed",JSON.stringify(next));
-      return next;
-    });
-  };
-  const toggleMandalaCollapse=()=>{
-    setCollapsedMandala(prev=>{ const next=!prev; localStorage.setItem("mandala_collapsed",JSON.stringify(next)); return next; });
-  };
-  const togglePlanningCollapse=()=>{
-    setCollapsedPlanning(prev=>{ const next=!prev; localStorage.setItem("planning_collapsed",JSON.stringify(next)); return next; });
-  };
-
-  // ── 서버 호출 추적 (동기화 중 낙관적 업데이트가 덮어써지지 않도록) ──
   const track=<T,>(p:Promise<T>):Promise<T>=>{
     inflight.current++;
     return p.finally(()=>{inflight.current--;});
   };
   const nowLabel=()=>new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",hour12:false});
 
-  // ── Google Drive(Sheets)에서 불러오기 + 주기적 동기화 ──
   const loadAll=useCallback(async()=>{
     if(inflight.current>0) return;
     setSync(s=>({...s,state:"syncing"}));
@@ -1301,7 +1190,7 @@ export default function App() {
     return ()=>{clearInterval(iv);document.removeEventListener("visibilitychange",onVis);};
   },[loadAll]);
 
-  // ── 드래그 중에만 삭제 영역 표시 ──
+  // 드래그 중에만 삭제 영역 표시
   useEffect(()=>{
     const start=()=>{ if(gDrag.cardId) setDragging(true); };
     const end=()=>{ setDragging(false); setTrashOver(false); };
@@ -1315,61 +1204,47 @@ export default function App() {
     };
   },[]);
 
-  // ── 현재 보이는 카드 (구분·태그 필터 적용, 리스트 정렬) ──
   const matchFilters=(card:Card,boardId:string)=>
     (catFilter==="all"||catOf(card,boardId)===catFilter) &&
     (!activeTagFilter||(card.tags||[]).includes(activeTagFilter));
-  const listItems:Item[]=(["work","personal"] as const)
+  const items:Item[]=(["work","personal"] as const)
     .flatMap(b=>(boards[b]||[]).map(card=>({card,boardId:b as string})))
-    .filter(i=>matchFilters(i.card,i.boardId))
-    .sort((a,b)=>{
-      const da=Number(isDoneCard(a.card,a.boardId)), db=Number(isDoneCard(b.card,b.boardId));
-      if(da!==db) return da-db;
-      return urgencySortKey(a.card).localeCompare(urgencySortKey(b.card));
-    });
+    .filter(i=>matchFilters(i.card,i.boardId));
+  // 키보드 이동 순서: TO-DO → WIP → DONE, 각 섹션은 긴급도 순
+  const orderedItems=[...items].sort((a,b)=>{
+    const d=STATUS_RANK[statusOf(a.card)]-STATUS_RANK[statusOf(b.card)];
+    return d||urgencySortKey(a.card).localeCompare(urgencySortKey(b.card));
+  });
 
   const allTags=Array.from(new Set(Object.values(boards).flat().flatMap(c=>c.tags||[]))).sort();
   const allCards=Object.values(boards).flat();
+  const countOf=(f:CatFilter)=>f==="all"?allCards.length
+    :Object.entries(boards).flatMap(([b,cs])=>cs.map(c=>catOf(c,b))).filter(c=>c===f).length;
 
-  // ── 토스트 ──
   const showToast=(msg:string,undo?:()=>void)=>{
     if(toastTimer.current) clearTimeout(toastTimer.current);
     setToast({msg,undo});
     toastTimer.current=setTimeout(()=>setToast(null),6000);
   };
 
-  // ── 패널 열기 ──
   const openCard=(card:Card,boardId:string)=>{setEditCard(card);setEditBoardId(boardId);setShowPanel(true);};
   const openNew=(colId:string,boardId:string,extra?:Partial<Card>)=>{
     setEditCard({id:"",colId,title:"",...extra});setEditBoardId(boardId);setShowPanel(true);
   };
-  const openNewCard=()=>{
+  const openNewCard=(status="todo")=>{
     const category=catFilter==="all"?"company":catFilter;
-    const boardId=category==="personal"?"personal":"work";
-    openNew(BOARDS_DEF.find(b=>b.id===boardId)!.cols[0].id,boardId,{category,priority:"normal"});
-  };
-
-  // ── CRUD ──
-  const handleQuickAdd=async(colId:string,title:string,boardId:string)=>{
-    const card:Card={id:"",colId,title,category:boardId==="personal"?"personal":"company",priority:"normal"};
-    try{
-      const res=await track(apiFetch("POST",boardId,card));
-      setBoards(prev=>({...prev,[boardId]:[...prev[boardId],res.card]}));
-    }catch(e){alert("저장 실패: "+e);}
+    openNew(status,category==="personal"?"personal":"work",{category,priority:"normal"});
   };
 
   const handleSave=async(card:Card)=>{
     try{
       if(card.id){
-        const res=await track(apiFetch("PUT",editBoardId,card,card.id));
+        const res=await track(apiFetch("PUT",editBoardId,{...card,colId:statusOf(card)},card.id));
         const updated=res.card||card;
         setBoards(prev=>({...prev,[editBoardId]:prev[editBoardId].map(c=>c.id===card.id?updated:c)}));
       } else {
-        // 새 카드: 구분이 '개인'이면 개인 보드, 아니면 업무 보드에 등록
         const target=card.category==="personal"?"personal":"work";
-        const def=BOARDS_DEF.find(b=>b.id===target)!;
-        const colId=def.cols.some(c=>c.id===card.colId)?card.colId:def.cols[0].id;
-        const res=await track(apiFetch("POST",target,{...card,colId}));
+        const res=await track(apiFetch("POST",target,{...card,colId:statusOf(card)}));
         setBoards(prev=>({...prev,[target]:[...prev[target],res.card]}));
         setSelectedKey(`${target}:${res.card.id}`);
       }
@@ -1377,12 +1252,25 @@ export default function App() {
     }catch(e){alert("저장 실패: "+e);}
   };
 
+  // 플래닝에서 입력한 줄 → TO-DO 카드
+  const addPlanTasks=async(lines:string[],date:string,category:"company"|"biz"|"personal")=>{
+    const target=category==="personal"?"personal":"work";
+    try{
+      const created:Card[]=[];
+      for(const title of lines){
+        const res=await track(apiFetch("POST",target,{id:"",colId:"todo",title,dueDate:date,category,priority:"normal"}));
+        created.push(res.card);
+      }
+      setBoards(prev=>({...prev,[target]:[...prev[target],...created]}));
+      showToast(`TO-DO에 ${created.length}개 추가됨`);
+    }catch(e){alert("TO-DO 추가 실패: "+e);}
+  };
+
   const deleteCard=async(cardId:string,boardId:string)=>{
     const card=boardsRef.current[boardId]?.find(c=>c.id===cardId);
     if(!card) return;
-    // 삭제 후 선택을 이웃 카드로 이동
-    const idx=listItems.findIndex(i=>i.card.id===cardId&&i.boardId===boardId);
-    const neighbor=listItems[idx+1]||listItems[idx-1];
+    const idx=orderedItems.findIndex(i=>i.card.id===cardId&&i.boardId===boardId);
+    const neighbor=orderedItems[idx+1]||orderedItems[idx-1];
     setSelectedKey(neighbor?itemKey(neighbor):null);
     setBoards(prev=>({...prev,[boardId]:prev[boardId].filter(c=>c.id!==cardId)}));
     setShowPanel(false);
@@ -1402,9 +1290,19 @@ export default function App() {
     }
   };
 
+  const cleanupDelete=async(ids:string[])=>{
+    setShowCleanup(false);
+    setBoards(prev=>({...prev,personal:prev.personal.filter(c=>!ids.includes(c.id))}));
+    let fail=0;
+    for(const id of ids){
+      try{ await track(apiFetch("DELETE","personal",undefined,id)); }catch{ fail++; }
+    }
+    showToast(fail?`${ids.length-fail}개 삭제, ${fail}개 실패`:`개인 카드 ${ids.length}개 삭제됨`);
+    if(fail) loadAll();
+  };
+
   const handleProgressChange=useCallback((cardId:string,boardId:string,v:number)=>{
     setBoards(prev=>({...prev,[boardId]:prev[boardId].map(c=>c.id===cardId?{...c,progress:v}:c)}));
-    // 드래그 중에는 화면만 갱신하고, 멈춘 뒤 한 번만 저장
     const k=`${boardId}:${cardId}`;
     clearTimeout(progTimers.current[k]);
     progTimers.current[k]=setTimeout(()=>{
@@ -1414,29 +1312,14 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
-  const handleDrop=async(targetColId:string,afterCardId:string|null,boardId:string)=>{
-    const{cardId,boardId:srcBoardId,card}=gDrag;
-    if(!cardId||!card) return;
-    const srcBoard=srcBoardId||boardId;
-    const updatedCard={...card,colId:targetColId};
-    if(srcBoard===boardId){
-      setBoards(prev=>{
-        const cols=[...prev[boardId]];
-        const idx=cols.findIndex(c=>c.id===cardId);
-        if(idx>=0) cols.splice(idx,1);
-        const afterIdx=afterCardId?cols.findIndex(c=>c.id===afterCardId):-1;
-        if(afterIdx>=0) cols.splice(afterIdx,0,updatedCard); else cols.push(updatedCard);
-        return{...prev,[boardId]:cols};
-      });
-    } else {
-      setBoards(prev=>({
-        ...prev,
-        [srcBoard]:prev[srcBoard].filter(c=>c.id!==cardId),
-        [boardId]:[...prev[boardId],updatedCard],
-      }));
-    }
+  // 섹션 사이로 카드 이동 (TO-DO ↔ WIP ↔ DONE)
+  const handleMove=async(status:string)=>{
+    const {cardId,boardId,card}=gDrag;
     gDrag={cardId:null,boardId:null,card:null};
-    try{await track(apiFetch("PUT",boardId,updatedCard,cardId));}catch(e){console.error(e);}
+    if(!cardId||!boardId||!card||statusOf(card)===status) return;
+    const updated={...card,colId:status};
+    setBoards(prev=>({...prev,[boardId]:prev[boardId].map(c=>c.id===cardId?updated:c)}));
+    try{await track(apiFetch("PUT",boardId,updated,cardId));}catch(e){console.error(e);}
   };
 
   const handleTrashDrop=(e:React.DragEvent)=>{
@@ -1447,62 +1330,75 @@ export default function App() {
     if(cardId&&boardId) deleteCard(cardId,boardId);
   };
 
-  // ── 키보드 단축키 (최신 상태를 ref로 참조) ──
+  const goKanban=(f:CatFilter)=>{ setView("kanban"); setCatFilter(f); };
+  const toggleKanbanNav=()=>{
+    setKanbanOpen(o=>{ const n=!o; localStorage.setItem("kanban_nav_open",JSON.stringify(n)); return n; });
+  };
+
+  // ── 키보드 단축키 ──
   const kb=useRef<{[k:string]:any}>({});
-  kb.current={showPanel,showHelp,view,listItems,selectedKey,toast,
-    openNewCard,deleteCard,openCard,setCatFilter,setView,setSelectedKey,setShowHelp};
+  kb.current={showPanel,showHelp,showCleanup,view,orderedItems,selectedKey,toast,
+    openNewCard,deleteCard,openCard,setCatFilter,setView,setSelectedKey,setShowHelp,setShowPanel,setShowCleanup};
   useEffect(()=>{
     const h=(e:KeyboardEvent)=>{
       const k=kb.current;
+      // ESC: 열려 있는 창을 닫고 원래 화면으로 (입력창에 포커스가 있어도 동작)
+      if(e.key==="Escape"){
+        if(k.showHelp){k.setShowHelp(false);return;}
+        if(k.showCleanup){k.setShowCleanup(false);return;}
+        if(k.showPanel){e.preventDefault();k.setShowPanel(false);return;}
+      }
       const t=e.target as HTMLElement;
       if(t instanceof HTMLInputElement||t instanceof HTMLTextAreaElement||t instanceof HTMLSelectElement||t.isContentEditable) return;
-      if(k.showPanel) return;
+      if(k.showPanel||k.showCleanup) return;
       if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){
         if(k.toast?.undo){e.preventDefault();k.toast.undo();}
         return;
       }
       if(e.ctrlKey||e.metaKey||e.altKey) return;
-      if(k.showHelp){ if(e.key==="Escape"||e.key==="?"){e.preventDefault();k.setShowHelp(false);} return; }
-      const items:Item[]=k.listItems;
-      const idx=items.findIndex(i=>itemKey(i)===k.selectedKey);
+      if(k.showHelp){ if(e.key==="?"){e.preventDefault();k.setShowHelp(false);} return; }
+      const list:Item[]=k.orderedItems;
+      const idx=list.findIndex(i=>itemKey(i)===k.selectedKey);
       switch(e.key){
         case "+": case "=": e.preventDefault(); k.openNewCard(); return;
         case "?": e.preventDefault(); k.setShowHelp(true); return;
         case "Escape": k.setSelectedKey(null); return;
-        case "1": k.setCatFilter("all"); return;
-        case "2": k.setCatFilter("company"); return;
-        case "3": k.setCatFilter("biz"); return;
-        case "4": k.setCatFilter("personal"); return;
-        case "b": case "B": k.setView((v:string)=>v==="list"?"board":"list"); return;
+        case "1": k.setView("kanban"); k.setCatFilter("all"); return;
+        case "2": k.setView("kanban"); k.setCatFilter("company"); return;
+        case "3": k.setView("kanban"); k.setCatFilter("biz"); return;
+        case "4": k.setView("kanban"); k.setCatFilter("personal"); return;
       }
       if(e.code==="NumpadAdd"){e.preventDefault();k.openNewCard();return;}
-      if(k.view!=="list"||!items.length) return;
+      if(k.view!=="kanban"||!list.length) return;
       if(["ArrowDown","ArrowRight","j","J"].includes(e.key)){
-        e.preventDefault(); k.setSelectedKey(itemKey(items[Math.min(items.length-1,idx+1)]));
+        e.preventDefault(); k.setSelectedKey(itemKey(list[Math.min(list.length-1,idx+1)]));
       } else if(["ArrowUp","ArrowLeft","k","K"].includes(e.key)){
-        e.preventDefault(); k.setSelectedKey(itemKey(items[Math.max(0,idx<0?0:idx-1)]));
+        e.preventDefault(); k.setSelectedKey(itemKey(list[Math.max(0,idx<0?0:idx-1)]));
       } else if(e.key==="Enter"&&idx>=0){
-        e.preventDefault(); k.openCard(items[idx].card,items[idx].boardId);
+        e.preventDefault(); k.openCard(list[idx].card,list[idx].boardId);
       } else if((e.key==="Delete"||e.key==="Backspace")&&idx>=0){
-        e.preventDefault(); k.deleteCard(items[idx].card.id,items[idx].boardId);
+        e.preventDefault(); k.deleteCard(list[idx].card.id,list[idx].boardId);
       }
     };
     window.addEventListener("keydown",h);
     return ()=>window.removeEventListener("keydown",h);
   },[]);
 
-  // 선택된 카드를 화면 안으로
   useEffect(()=>{
     if(!selectedKey) return;
     document.querySelector(`[data-key="${selectedKey}"]`)?.scrollIntoView({block:"nearest"});
   },[selectedKey]);
 
   const syncLabel=sync.state==="error"?"동기화 실패":sync.state==="syncing"?"동기화 중…":`Drive 동기화 ${sync.at}`;
+  const chipCls=(active:boolean)=>active?"btn-dark":"btn-light";
+  const chipBase:React.CSSProperties={padding:"4px 13px",borderRadius:999,fontSize:11.5,fontWeight:600,whiteSpace:"nowrap"};
 
-  const chip=(active:boolean):React.CSSProperties=>({
-    padding:"4px 12px",borderRadius:999,fontSize:11.5,fontWeight:600,whiteSpace:"nowrap",
-    border:active?"1px solid #18181b":"1px solid #c4c4cc",
-    background:active?"#18181b":"#fff",color:active?"#fff":"#52525b",
+  const navItem=(active:boolean,indent=false):React.CSSProperties=>({
+    padding:"6px 10px",paddingLeft:indent?26:10,borderRadius:8,marginBottom:2,fontSize:12,fontWeight:active?700:500,
+    cursor:"pointer",display:"flex",alignItems:"center",gap:7,width:"100%",textAlign:"left",
+    color:active?"#fff":"#52525b",
+    background:active?"linear-gradient(180deg,#52525b,#18181b)":"transparent",
+    boxShadow:active?"inset 0 1px 0 rgba(255,255,255,.35)":"none",
   });
 
   return (
@@ -1510,28 +1406,27 @@ export default function App() {
       <style>{STYLE}</style>
 
       {/* ── Top nav ── */}
-      <div style={{
-        background:"var(--surface)",borderBottom:"1px solid var(--border)",
-        height:46,display:"flex",alignItems:"center",padding:"0 16px",gap:10,
+      <div className="metal-nav" style={{
+        height:48,display:"flex",alignItems:"center",padding:"0 16px",gap:10,
         position:"sticky",top:0,zIndex:100,
       }}>
         <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-          <div style={{width:22,height:22,background:"var(--n900)",borderRadius:6,
+          <div className="logo-chrome" style={{width:24,height:24,borderRadius:7,
             display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-            <span style={{fontSize:11.5,fontWeight:700,color:"#fff",letterSpacing:"-0.02em"}}>K</span>
+            <span style={{fontSize:12,fontWeight:800,color:"#fff",letterSpacing:"-0.02em"}}>K</span>
           </div>
-          <span style={{fontWeight:700,fontSize:14,letterSpacing:"-0.02em",color:"var(--text)"}}>Kanban</span>
+          <span className="brand-text" style={{fontWeight:800,fontSize:15,letterSpacing:"-0.02em"}}>Kanban</span>
         </div>
 
         {!isMobile
-          ? <span style={{fontSize:11,fontStyle:"italic",color:"var(--text-light)",fontWeight:300,
+          ? <span style={{fontSize:11,fontStyle:"italic",color:"#8a8d96",fontWeight:300,
               whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",flex:1,minWidth:0,letterSpacing:"0.01em"}}>
               Manifesting aura; making the intangible tangible.
             </span>
           : <div style={{flex:1}}/>}
 
         <span title="구글 드라이브(Sheets)에 자동 저장·동기화" style={{fontSize:10.5,flexShrink:0,
-          color:sync.state==="error"?"#18181b":"var(--text-light)",fontWeight:sync.state==="error"?700:400,
+          color:sync.state==="error"?"#18181b":"#8a8d96",fontWeight:sync.state==="error"?700:400,
           display:"flex",alignItems:"center",gap:5,cursor:sync.state==="error"?"pointer":"default"}}
           onClick={()=>{if(sync.state==="error")loadAll();}}>
           <span style={{width:6,height:6,borderRadius:"50%",display:"inline-block",
@@ -1540,163 +1435,146 @@ export default function App() {
           {isMobile?"":syncLabel}{sync.state==="error"&&" (다시 시도)"}
         </span>
 
-        <button onClick={()=>setShowHelp(true)} title="키보드 단축키 (?)"
-          style={{width:28,height:28,borderRadius:7,border:"1px solid #c4c4cc",background:"#fff",
-            color:"#52525b",fontSize:13,fontWeight:600,flexShrink:0}}>?</button>
-        <button onClick={openNewCard} title="새 카드 추가 (+)"
-          style={{width:28,height:28,borderRadius:7,background:"var(--n900)",color:"#fff",
-            fontSize:18,fontWeight:300,lineHeight:1,flexShrink:0,
+        <button onClick={()=>setShowHelp(true)} title="키보드 단축키 (?)" className="btn-light"
+          style={{width:28,height:28,borderRadius:8,fontSize:13,fontWeight:700,flexShrink:0}}>?</button>
+        <button onClick={()=>openNewCard()} title="새 카드 추가 (+)" className="btn-dark"
+          style={{width:28,height:28,borderRadius:8,fontSize:18,fontWeight:300,lineHeight:1,flexShrink:0,
             display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
       </div>
 
       {/* ── Main layout ── */}
-      <div style={{display:"flex",height:"calc(100vh - 46px)",overflow:"hidden"}}>
+      <div style={{display:"flex",height:"calc(100vh - 48px)",overflow:"hidden"}}>
 
         {!isMobile&&(
-          <div style={{width:214,flexShrink:0,borderRight:"1px solid var(--border)",
-            background:"var(--sidebar-bg)",padding:"16px 14px",overflowY:"auto"}}>
+          <div className="metal-side" style={{width:SIDEBAR_W,flexShrink:0,padding:"16px 12px",overflowY:"auto"}}>
             <MiniCalendar cards={allCards} onDayClick={d=>openNew("todo","work",{dueDate:d,category:"company",priority:"normal"})}/>
-            <div style={{height:1,background:"var(--border-lt)",margin:"16px 0"}}/>
-            <div style={{fontSize:10,fontWeight:600,color:"var(--text-light)",letterSpacing:"0.07em",textTransform:"uppercase",marginBottom:8}}>보드</div>
-            {BOARDS_DEF.map(b=>(
-              <div key={b.id}
-                onClick={()=>{setView("board");toggleBoardCollapse(b.id);}}
-                style={{padding:"5px 8px",borderRadius:6,marginBottom:2,
-                  fontSize:12,color:collapsedBoards[b.id]?"var(--text-light)":"var(--text-sub)",
-                  cursor:"pointer",display:"flex",alignItems:"center",gap:6}}
-                onMouseOver={e=>e.currentTarget.style.background="var(--col-bg)"}
-                onMouseOut={e=>e.currentTarget.style.background="transparent"}>
-                <div style={{width:6,height:6,borderRadius:"50%",flexShrink:0,
-                  background:collapsedBoards[b.id]?"var(--border)":"var(--accent)"}}/>
-                {b.title}
-                <span style={{marginLeft:"auto",fontSize:9,color:"var(--text-light)"}}>{collapsedBoards[b.id]?"▸":"▾"}</span>
-              </div>
-            ))}
-            <div style={{height:1,background:"var(--border-lt)",margin:"12px 0"}}/>
-            <div style={{fontSize:11,color:"var(--text-light)"}}>총 {allCards.length}개 카드</div>
+            <div style={{height:1,background:"#c4c7ce",margin:"16px 0"}}/>
+            <div style={{fontSize:10,fontWeight:700,color:"#8a8d96",letterSpacing:"0.1em",textTransform:"uppercase",margin:"0 4px 8px"}}>보드</div>
+
+            {/* 칸반보드 — 누르면 접힘/펼침 */}
+            <button style={navItem(view==="kanban"&&!kanbanOpen)}
+              onClick={()=>{ if(view!=="kanban"){setView("kanban");} toggleKanbanNav(); }}>
+              <span style={{fontSize:9,transform:kanbanOpen?"rotate(0)":"rotate(-90deg)",transition:"transform .15s",display:"inline-block"}}>▾</span>
+              칸반보드
+            </button>
+            {kanbanOpen&&CAT_FILTERS.map(f=>{
+              const active=view==="kanban"&&catFilter===f.id;
+              return (
+                <button key={f.id} style={navItem(active,true)} onClick={()=>goKanban(f.id)}>
+                  {f.ko}
+                  <span style={{marginLeft:"auto",fontSize:10,opacity:.7}}>{countOf(f.id)}</span>
+                </button>
+              );
+            })}
+            <button style={navItem(view==="mandala")} onClick={()=>setView("mandala")}>
+              <span style={{width:9}}/>만다라트
+            </button>
+            <button style={navItem(view==="planning")} onClick={()=>setView("planning")}>
+              <span style={{width:9}}/>플래닝
+            </button>
+
+            <div style={{height:1,background:"#c4c7ce",margin:"14px 0 10px"}}/>
+            <div style={{fontSize:11,color:"#8a8d96",margin:"0 4px"}}>총 {allCards.length}개 카드</div>
+            <button onClick={()=>setShowCleanup(true)}
+              style={{margin:"10px 4px 0",fontSize:10.5,color:"#8a8d96",textDecoration:"underline"}}>개인 카드 정리…</button>
           </div>
         )}
 
         <div style={{flex:1,minWidth:0,overflowY:"auto",display:"flex",flexDirection:"column"}}>
           {/* Toolbar */}
-          <div style={{position:"sticky",top:0,zIndex:20,background:"var(--bg)",
+          <div style={{position:"sticky",top:0,zIndex:20,background:"rgba(232,234,238,.82)",backdropFilter:"blur(10px)",
             padding:isMobile?"10px 8px 8px":"14px 18px 10px",display:"flex",flexDirection:"column",gap:8}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-              <div style={{display:"inline-flex",background:"#fff",border:"1px solid #18181b",borderRadius:999,padding:2}}>
-                {([["list","전체 리스트"],["board","보드"]] as const).map(([id,ko])=>(
-                  <button key={id} onClick={()=>setView(id)}
-                    style={{padding:"4px 14px",borderRadius:999,fontSize:11.5,fontWeight:600,
-                      background:view===id?"#18181b":"transparent",color:view===id?"#fff":"#52525b"}}>{ko}</button>
+            {isMobile&&(
+              <div style={{display:"inline-flex",alignSelf:"flex-start",background:"#fff",border:"1px solid #18181b",borderRadius:999,padding:2}}>
+                {([["kanban","칸반"],["mandala","만다라트"],["planning","플래닝"]] as const).map(([id,ko])=>(
+                  <button key={id} onClick={()=>setView(id)} className={view===id?"btn-dark":""}
+                    style={{padding:"4px 14px",borderRadius:999,fontSize:11.5,fontWeight:600,color:view===id?"#fff":"#52525b"}}>{ko}</button>
                 ))}
               </div>
-              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                {CAT_FILTERS.map(f=>(
-                  <button key={f.id} style={chip(catFilter===f.id)} onClick={()=>setCatFilter(f.id)}>{f.ko}</button>
-                ))}
-              </div>
-            </div>
-            {allTags.length>0&&(
-              <div style={{display:"flex",gap:5,overflowX:"auto",scrollbarWidth:"none"}}>
-                {allTags.map(t=>(
-                  <button key={t} style={{...chip(activeTagFilter===t),padding:"2px 10px",fontSize:10.5}}
-                    onClick={()=>setActiveTagFilter(activeTagFilter===t?null:t)}>#{t}</button>
-                ))}
+            )}
+            {view==="kanban"&&(
+              <>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                  {CAT_FILTERS.map(f=>(
+                    <button key={f.id} className={chipCls(catFilter===f.id)} style={chipBase}
+                      onClick={()=>setCatFilter(f.id)}>{f.ko}</button>
+                  ))}
+                  {isMobile&&<button onClick={()=>setShowCleanup(true)} style={{marginLeft:"auto",fontSize:10.5,color:"#8a8d96",textDecoration:"underline"}}>개인 정리</button>}
+                </div>
+                {allTags.length>0&&(
+                  <div style={{display:"flex",gap:5,overflowX:"auto",scrollbarWidth:"none"}}>
+                    {allTags.map(t=>(
+                      <button key={t} className={chipCls(activeTagFilter===t)}
+                        style={{...chipBase,padding:"2px 10px",fontSize:10.5}}
+                        onClick={()=>setActiveTagFilter(activeTagFilter===t?null:t)}>#{t}</button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+            {view!=="kanban"&&!isMobile&&(
+              <div style={{fontSize:13,fontWeight:800,letterSpacing:"0.06em",color:"#18181b"}}>
+                {view==="mandala"?"만다라트":"플래닝"}
               </div>
             )}
           </div>
 
-          <div style={{flex:1,padding:isMobile?"2px 8px 70px":"4px 18px 56px",display:"flex",flexDirection:"column",gap:18}}>
+          <div style={{flex:1,padding:isMobile?"2px 8px 70px":"4px 18px 56px"}}>
             {loading
               ? <div style={{textAlign:"center",color:"var(--text-light)",paddingTop:60,fontSize:13}}>불러오는 중…</div>
-              : view==="list"
-              ? <ListView items={listItems} selectedKey={selectedKey} onSelect={setSelectedKey}
+              : view==="kanban"
+              ? <KanbanView items={items} selectedKey={selectedKey} onSelect={setSelectedKey}
                   onOpen={it=>openCard(it.card,it.boardId)}
-                  onProgressChange={handleProgressChange} isMobile={isMobile}/>
-              : <>
-                  {BOARDS_DEF.map(def=>(
-                    <Board key={def.id} def={def}
-                      cards={(boards[def.id]||[]).filter(c=>catFilter==="all"||catOf(c,def.id)===catFilter)}
-                      collapsed={!!collapsedBoards[def.id]}
-                      onToggleCollapse={()=>toggleBoardCollapse(def.id)}
-                      onCardClick={c=>openCard(c,def.id)}
-                      onQuickAdd={handleQuickAdd}
-                      onDrop={handleDrop}
-                      activeTagFilter={activeTagFilter}
-                      doneSearch={doneSearch} setDoneSearch={setDoneSearch}
-                      onProgressChange={handleProgressChange}/>
-                  ))}
-                  {!collapsedBoards["personal"]&&(
-                    <>
-                      <div style={{height:1,background:"var(--border)",margin:"2px 0"}}/>
-                      <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",userSelect:"none"}}
-                        onClick={toggleMandalaCollapse}>
-                        <button style={{
-                          width:18,height:18,borderRadius:4,border:"1px solid var(--border)",
-                          display:"flex",alignItems:"center",justifyContent:"center",
-                          background:"var(--surface)",fontSize:10,color:"var(--text-sub)",
-                          transform:collapsedMandala?"rotate(-90deg)":"rotate(0deg)",transition:"transform .15s",flexShrink:0,
-                        }}>▾</button>
-                        <span style={{fontSize:11,fontWeight:600,color:"var(--text-sub)",letterSpacing:"0.05em",textTransform:"uppercase"}}>만다라트</span>
-                        <span style={{fontSize:10,color:"var(--text-light)"}}>— 중앙 목표를 중심으로 8×8 세부 목표 설정</span>
-                      </div>
-                      {!collapsedMandala&&<MandalaView/>}
-                    </>
-                  )}
-                  <div style={{height:1,background:"var(--border)",margin:"2px 0"}}/>
-                  <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",userSelect:"none"}}
-                    onClick={togglePlanningCollapse}>
-                    <button style={{
-                      width:18,height:18,borderRadius:4,border:"1px solid var(--border)",
-                      display:"flex",alignItems:"center",justifyContent:"center",
-                      background:"var(--surface)",fontSize:10,color:"var(--text-sub)",
-                      transform:collapsedPlanning?"rotate(-90deg)":"rotate(0deg)",transition:"transform .15s",flexShrink:0,
-                    }}>▾</button>
-                    <span style={{fontSize:11,fontWeight:600,color:"var(--text-sub)",letterSpacing:"0.05em",textTransform:"uppercase"}}>플래닝</span>
-                    <span style={{fontSize:10,color:"var(--text-light)"}}>— 콘텐츠 월간 플래닝</span>
-                  </div>
-                  {!collapsedPlanning&&<PlanningView/>}
-                  <div style={{height:20}}/>
-                </>
+                  onProgressChange={handleProgressChange}
+                  onMove={handleMove} onAdd={s=>openNewCard(s)} isMobile={isMobile}/>
+              : view==="mandala"
+              ? <MandalaView/>
+              : <PlanningView onAddTasks={addPlanTasks} isMobile={isMobile}/>
             }
           </div>
         </div>
       </div>
 
       {/* 하단 단축키 힌트 (데스크톱) */}
-      {!isMobile&&!showPanel&&!dragging&&(
-        <div style={{position:"fixed",left:214,right:0,bottom:0,zIndex:90,padding:"7px 18px",
-          background:"rgba(255,255,255,.92)",backdropFilter:"blur(6px)",borderTop:"1px solid var(--border)",
+      {!isMobile&&!showPanel&&!dragging&&view==="kanban"&&(
+        <div style={{position:"fixed",left:SIDEBAR_W,right:0,bottom:0,zIndex:90,padding:"7px 18px",
+          background:"rgba(244,245,247,.9)",backdropFilter:"blur(8px)",borderTop:"1px solid #b4b8c0",
           fontSize:10.5,color:"#71717a",display:"flex",gap:14,flexWrap:"wrap",alignItems:"center"}}>
           <span><span className="kbd">+</span> 추가</span>
           <span><span className="kbd">↑</span><span className="kbd" style={{marginLeft:2}}>↓</span> 선택</span>
           <span><span className="kbd">Enter</span> 편집</span>
           <span><span className="kbd">Delete</span> 삭제</span>
           <span><span className="kbd">Tab</span> 다음 항목</span>
+          <span><span className="kbd">Esc</span> 닫기</span>
           <span><span className="kbd">?</span> 전체 단축키</span>
         </div>
       )}
 
-      {/* 드래그 삭제 영역 */}
+      {/* 드래그 삭제 영역 — 화면 아래 1/3, 붉은 음영 */}
       {dragging&&(
-        <div className={`trash-zone${trashOver?" over":""}`}
+        <div className={`delete-zone${trashOver?" over":""}`}
+          style={{["--dz-left" as any]:isMobile?"0px":`${SIDEBAR_W}px`}}
           onDragOver={e=>{e.preventDefault();e.dataTransfer.dropEffect="move";setTrashOver(true);}}
           onDragLeave={()=>setTrashOver(false)}
           onDrop={handleTrashDrop}>
-          여기에 놓으면 삭제
+          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v7M14 10v7"/>
+          </svg>
+          <span>{trashOver?"놓으면 삭제돼요":"여기로 끌어다 놓으면 삭제"}</span>
         </div>
       )}
 
-      {/* 토스트 */}
       {toast&&(
         <div style={{position:"fixed",left:"50%",bottom:isMobile?18:48,transform:"translateX(-50%)",zIndex:450,
-          background:"#18181b",color:"#fff",borderRadius:999,padding:"9px 18px",fontSize:12,
-          display:"flex",alignItems:"center",gap:14,boxShadow:"0 8px 28px rgba(0,0,0,.25)",maxWidth:"92vw"}}>
+          background:"linear-gradient(180deg,#3f3f46,#09090b)",color:"#fff",borderRadius:999,padding:"9px 18px",fontSize:12,
+          display:"flex",alignItems:"center",gap:14,boxShadow:"0 8px 28px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.3)",maxWidth:"92vw"}}>
           <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{toast.msg}</span>
           {toast.undo&&<button onClick={toast.undo} style={{color:"#fff",fontWeight:700,textDecoration:"underline",fontSize:12}}>되돌리기</button>}
         </div>
       )}
 
       {showHelp&&<HelpOverlay onClose={()=>setShowHelp(false)}/>}
+      {showCleanup&&<CleanupModal cards={boards.personal||[]} onClose={()=>setShowCleanup(false)} onDelete={cleanupDelete}/>}
 
       {showPanel&&(
         <SidePanel card={editCard} boardId={editBoardId}
