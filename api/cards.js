@@ -173,6 +173,8 @@ export default async function handler(req, res) {
         spreadsheetId: SHEET_ID,
         range: `${sheetName}!A:${LAST_COL}`,
         valueInputOption: 'RAW',
+        // 동시에 추가돼도 같은 행을 덮어쓰지 않도록 새 행을 끼워 넣는 방식으로 추가
+        insertDataOption: 'INSERT_ROWS',
         requestBody: { values: [cardToRow(c, calEventId)] },
       });
       return res.status(200).json({ ok: true, card: { ...c, calEventId } });

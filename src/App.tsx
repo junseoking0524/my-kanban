@@ -531,7 +531,7 @@ function ChoiceGroup<T extends string>({options,value,onChange,allowClear}:{
 
 function SidePanel({card,boardId,onClose,onSave,onDelete,allTags}:{
   card:Card|null; boardId:string;
-  onClose:()=>void; onSave:(c:Card)=>void; onDelete:(id:string)=>void; allTags:string[];
+  onClose:()=>void; onSave:(c:Card,keepOpen?:boolean)=>void; onDelete:(id:string)=>void; allTags:string[];
 }) {
   const init=(c:Card|null):Card=>({category:catOf(c||{id:"",colId:"",title:""},boardId),priority:"normal",...(c||{id:"",colId:"",title:""})});
   const [form,setForm] = useState<Card>(()=>init(card));
@@ -566,13 +566,13 @@ function SidePanel({card,boardId,onClose,onSave,onDelete,allTags}:{
   const removeTag=(t:string)=>setForm(f=>({...f,tags:(f.tags||[]).filter(x=>x!==t)}));
   const commitDue=()=>setForm(f=>({...f,dueDate:displayToDueDate(dueDateDisplay)}));
 
-  const doSave=()=>{
+  const doSave=(keepOpen=false)=>{
     const title=form.title.trim();
     if(!title){titleRef.current?.focus();return;}
     // 태그 입력창에 남은 글자도 함께 저장
     const pending=tagInput.trim().replace(/[,#]/g,"");
     const tags=pending&&!(form.tags||[]).includes(pending)?[...(form.tags||[]),pending]:form.tags;
-    onSave({...form,title,tags,dueDate:displayToDueDate(dueDateDisplay)});
+    onSave({...form,title,tags,dueDate:displayToDueDate(dueDateDisplay)},keepOpen&&!form.id);
   };
 
   const inputStyle:React.CSSProperties={
@@ -602,10 +602,10 @@ function SidePanel({card,boardId,onClose,onSave,onDelete,allTags}:{
         </div>
 
         <div style={{padding:"16px 18px",display:"flex",flexDirection:"column",gap:14,flex:1}}>
-          <PanelField label="제목" hint="Enter로 등록 · Shift+Enter 줄바꿈">
+          <PanelField label="제목" hint={form.id?"Enter로 저장 · Shift+Enter 줄바꿈":"Enter로 등록하고 계속 입력 · Esc로 끝내기"}>
             <textarea ref={titleRef} data-f="1" value={form.title}
               onChange={e=>setForm(f=>({...f,title:e.target.value}))}
-              onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();doSave();}}}
+              onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();if(!e.repeat)doSave(true);}}}
               rows={2} placeholder="무엇을 해야 하나요?"
               className="panel-field-input" style={{...inputStyle,resize:"none",lineHeight:1.5}}/>
           </PanelField>
@@ -674,8 +674,8 @@ function SidePanel({card,boardId,onClose,onSave,onDelete,allTags}:{
         <div style={{padding:"10px 18px 14px",borderTop:"1px solid #e4e4e7",background:"#fafafa"}}>
           <div style={{display:"flex",gap:6}}>
             <button data-f="1"
-              onClick={doSave}
-              onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();doSave();}}}
+              onClick={()=>doSave()}
+              onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();if(!e.repeat)doSave();}}}
               className="panel-save btn-dark"
               style={{flex:1,padding:"9px",borderRadius:8,fontWeight:700,fontSize:12.5,cursor:"pointer"}}>
               {form.id?"저장":"등록"} <span style={{opacity:.5,fontWeight:500,fontSize:10.5,marginLeft:4}}>Enter</span>
@@ -927,12 +927,12 @@ const SHORTCUTS:[string[],string][] = [
   [["+"],"새 카드 추가 (패널 열림)"],
   [["Tab"],"다음 항목  ·  Shift+Tab 이전 항목"],
   [["←","→"],"구분 / 긴급도 / 라벨 선택"],
-  [["Enter"],"다음 항목으로 · 제목에서는 바로 등록"],
+  [["Enter"],"다음 항목으로 · 제목에서는 등록하고 다음 카드 계속 입력"],
   [["Ctrl","Enter"],"패널 어디서든 저장"],
   [["Esc"],"패널·창 닫고 원래 화면으로"],
   [["↑","↓"],"카드 선택 (j / k 도 가능)"],
   [["Enter"],"선택한 카드 편집"],
-  [["Delete"],"선택한 카드 삭제 (Backspace 도 가능)"],
+  [["Delete"],"선택한 카드 삭제"],
   [["Ctrl","Z"],"방금 삭제한 카드 되돌리기"],
   [["1","2","3","4"],"전체 / 회사 / Biz / 개인 보기"],
   [["?"],"이 도움말 열기·닫기"],
@@ -1137,23 +1137,35 @@ export default function App() {
   const progTimers = useRef<Record<string,ReturnType<typeof setTimeout>>>({});
   const toastTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
 
-  const track=<T,>(p:Promise<T>):Promise<T>=>{
-    inflight.current++;
-    return p.finally(()=>{inflight.current--;});
+  // 모든 저장(추가/수정/삭제)은 한 줄로 세워서 하나씩 실행 — 동시에 시트에 쓰다가 서로 덮어쓰는 것을 막음
+  const mutSeq = useRef(0);
+  const queueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const mutate=<T,>(fn:()=>Promise<T>):Promise<T>=>{
+    inflight.current++; mutSeq.current++;
+    const p=queueRef.current.catch(()=>{}).then(fn);
+    queueRef.current=p.catch(()=>{});
+    return p.finally(()=>{inflight.current--; mutSeq.current++;});
   };
+  const newCardId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
   const nowLabel=()=>new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",hour12:false});
 
   const loadAll=useCallback(async()=>{
     if(inflight.current>0) return;
+    const seq=mutSeq.current;
     setSync(s=>({...s,state:"syncing"}));
     try{
       const [w,p]=await Promise.all([apiFetch("GET","work"),apiFetch("GET","personal")]);
-      if(inflight.current>0) return;
+      // 불러오는 사이에 저장이 있었다면 이 결과는 낡은 것 → 버리고 잠시 뒤 다시
+      if(inflight.current>0||mutSeq.current!==seq){
+        setTimeout(()=>loadAll(),1500);
+        return;
+      }
       setBoards({work:Array.isArray(w)?w:(w.cards||[]),personal:Array.isArray(p)?p:(p.cards||[])});
       setSync({state:"ok",at:nowLabel()});
     }catch{
       setSync(s=>({...s,state:"error"}));
     }finally{ setLoading(false); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
   useEffect(()=>{
@@ -1232,34 +1244,45 @@ export default function App() {
     openNew(status,category==="personal"?"personal":"work",{category,priority:"normal"});
   };
 
-  const handleSave=async(card:Card)=>{
-    try{
-      if(card.id){
-        const res=await track(apiFetch("PUT",editBoardId,{...card,colId:statusOf(card)},card.id));
-        const updated=res.card||card;
-        setBoards(prev=>({...prev,[editBoardId]:prev[editBoardId].map(c=>c.id===card.id?updated:c)}));
-      } else {
-        const target=card.category==="personal"?"personal":"work";
-        const res=await track(apiFetch("POST",target,{...card,colId:statusOf(card)}));
-        setBoards(prev=>({...prev,[target]:[...prev[target],res.card]}));
-        setSelectedKey(`${target}:${res.card.id}`);
-      }
+  // 화면에 먼저 반영하고 저장은 뒤에서 순서대로 — Enter를 연달아 눌러도 빠르게 계속 입력 가능
+  const handleSave=(card:Card,keepOpen=false)=>{
+    const colId=statusOf(card);
+    if(card.id){
+      const bid=editBoardId;
+      const full={...card,colId};
+      setBoards(prev=>({...prev,[bid]:prev[bid].map(c=>c.id===card.id?{...c,...full}:c)}));
       setShowPanel(false);
-    }catch(e){alert("저장 실패: "+e);}
+      mutate(()=>apiFetch("PUT",bid,full,card.id)).catch(e=>{alert("저장 실패: "+e);loadAll();});
+      return;
+    }
+    const target=card.category==="personal"?"personal":"work";
+    const id=newCardId();
+    const full={...card,id,colId};
+    setBoards(prev=>({...prev,[target]:[...prev[target],full]}));
+    setSelectedKey(`${target}:${id}`);
+    if(keepOpen){
+      // 연속 입력: 같은 구분/긴급도로 빈 입력창을 바로 다시 열기
+      setEditCard({id:"",colId,title:"",category:card.category,priority:card.priority});
+      setEditBoardId(target);
+    } else setShowPanel(false);
+    mutate(()=>apiFetch("POST",target,full)).catch(e=>{
+      setBoards(prev=>({...prev,[target]:prev[target].filter(c=>c.id!==id)}));
+      alert("저장 실패 — 카드가 취소됐어요: "+e);
+    });
   };
 
   // 플래닝에서 입력한 줄 → TO-DO 카드
-  const addPlanTasks=async(lines:string[],date:string,category:"company"|"biz"|"personal")=>{
+  const addPlanTasks=(lines:string[],date:string,category:"company"|"biz"|"personal")=>{
     const target=category==="personal"?"personal":"work";
-    try{
-      const created:Card[]=[];
-      for(const title of lines){
-        const res=await track(apiFetch("POST",target,{id:"",colId:"todo",title,dueDate:date,category,priority:"normal"}));
-        created.push(res.card);
-      }
-      setBoards(prev=>({...prev,[target]:[...prev[target],...created]}));
-      showToast(`TO-DO에 ${created.length}개 추가됨`);
-    }catch(e){alert("TO-DO 추가 실패: "+e);}
+    const cards:Card[]=lines.map(title=>({id:newCardId(),colId:"todo",title,dueDate:date,category,priority:"normal"}));
+    setBoards(prev=>({...prev,[target]:[...prev[target],...cards]}));
+    showToast(`TO-DO에 ${cards.length}개 추가됨`);
+    for(const c of cards){
+      mutate(()=>apiFetch("POST",target,c)).catch(e=>{
+        setBoards(prev=>({...prev,[target]:prev[target].filter(x=>x.id!==c.id)}));
+        alert("TO-DO 추가 실패: "+e);
+      });
+    }
   };
 
   const deleting=useRef<Set<string>>(new Set());
@@ -1275,10 +1298,10 @@ export default function App() {
     setBoards(prev=>({...prev,[boardId]:prev[boardId].filter(c=>c.id!==cardId)}));
     setShowPanel(false);
     try{
-      await track(apiFetch("DELETE",boardId,undefined,cardId));
+      await mutate(()=>apiFetch("DELETE",boardId,undefined,cardId));
       showToast(`"${card.title.slice(0,24)}" 삭제됨`,async()=>{
         try{
-          const res=await track(apiFetch("POST",boardId,card));
+          const res=await mutate(()=>apiFetch("POST",boardId,card));
           setBoards(prev=>({...prev,[boardId]:[...prev[boardId],res.card]}));
           setSelectedKey(`${boardId}:${res.card.id}`);
           setToast(null);
@@ -1300,7 +1323,7 @@ export default function App() {
     setBoards(prev=>({...prev,personal:prev.personal.filter(c=>!ids.includes(c.id))}));
     let fail=0;
     for(const id of ids){
-      try{ await track(apiFetch("DELETE","personal",undefined,id)); }catch{ fail++; }
+      try{ await mutate(()=>apiFetch("DELETE","personal",undefined,id)); }catch{ fail++; }
     }
     showToast(fail?`${ids.length-fail}개 삭제, ${fail}개 실패`:`개인 카드 ${ids.length}개 삭제됨`);
     if(fail) loadAll();
@@ -1312,7 +1335,7 @@ export default function App() {
     clearTimeout(progTimers.current[k]);
     progTimers.current[k]=setTimeout(()=>{
       const card=boardsRef.current[boardId]?.find(c=>c.id===cardId);
-      if(card) track(apiFetch("PUT",boardId,card,cardId)).catch(()=>{});
+      if(card) mutate(()=>apiFetch("PUT",boardId,card,cardId)).catch(()=>{});
     },400);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
@@ -1324,7 +1347,7 @@ export default function App() {
     if(!cardId||!boardId||!card||statusOf(card)===status) return;
     const updated={...card,colId:status};
     setBoards(prev=>({...prev,[boardId]:prev[boardId].map(c=>c.id===cardId?updated:c)}));
-    try{await track(apiFetch("PUT",boardId,updated,cardId));}catch(e){console.error(e);}
+    try{await mutate(()=>apiFetch("PUT",boardId,updated,cardId));}catch(e){console.error(e);}
   };
 
   const handleTrashDrop=(e:React.DragEvent)=>{
@@ -1381,7 +1404,7 @@ export default function App() {
         e.preventDefault(); k.setSelectedKey(itemKey(list[Math.max(0,idx<0?0:idx-1)]));
       } else if(e.key==="Enter"&&idx>=0){
         e.preventDefault(); k.openCard(list[idx].card,list[idx].boardId);
-      } else if((e.key==="Delete"||e.key==="Backspace")&&idx>=0){
+      } else if(e.key==="Delete"&&idx>=0){
         e.preventDefault(); if(e.repeat) return; k.deleteCard(list[idx].card.id,list[idx].boardId);
       }
     };
