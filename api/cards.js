@@ -185,8 +185,9 @@ export default async function handler(req, res) {
     // DELETE: 카드 삭제 + 캘린더 이벤트 삭제
     if (req.method === 'DELETE') {
       const rows = await readRows();
-      const rowIdx = rows.findIndex(r => r[0] === id);
-      if (rowIdx === -1) return res.status(404).json({ error: 'Not found' });
+      const rowIdx = rows.findIndex(r => String(r[0]).trim() === String(id).trim());
+      // 이미 지워진 카드는 성공으로 처리 (중복 요청 대비)
+      if (rowIdx === -1) return res.status(200).json({ ok: true, alreadyGone: true });
       const rowNum = rowIdx + 2;
       await deleteEvent(calendar, rows[rowIdx][6] || '');
       await sheets.spreadsheets.values.clear({

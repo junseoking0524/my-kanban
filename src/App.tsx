@@ -195,89 +195,56 @@ const STYLE = `
     font-size:10.5px; line-height:1.45; color:var(--text); font-family:var(--font);
   }
 
-  /* ═══ Metallic / bling layer ═══ */
-  html, body { background:linear-gradient(135deg,#d9dce2 0%,#f3f4f6 36%,#e4e6ea 62%,#d3d6dc 100%) fixed; }
-  .metal-nav { background:linear-gradient(180deg,#ffffff 0%,#eceef1 55%,#d6d9df 100%);
-    border-bottom:1px solid #a9adb6; box-shadow:inset 0 1px 0 #fff, 0 2px 12px rgba(0,0,0,.10); }
-  .metal-side { background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(236,238,241,.9));
-    border-right:1px solid #b4b8c0; box-shadow:inset -1px 0 0 rgba(255,255,255,.8); }
-  .logo-chrome { background:linear-gradient(145deg,#8a8e98 0%,#18181b 42%,#5b5e68 68%,#0b0b0d 100%);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.55), 0 2px 8px rgba(0,0,0,.4); position:relative; overflow:hidden; }
-  .logo-chrome::after { content:""; position:absolute; inset:0;
-    background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.7) 50%,transparent 65%);
-    transform:translateX(-130%); animation:shine 4.5s ease-in-out infinite; }
-  .brand-text { background:linear-gradient(180deg,#52525b,#09090b); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  /* ═══ Clean / flat layer ═══ */
+  html, body { background:#f1f2f4; }
+  .metal-nav { background:#fff; border-bottom:1px solid #e1e3e8; }
+  .metal-side { background:#fff; border-right:1px solid #e1e3e8; }
+  .logo-chrome { background:#18181b; }
+  .brand-text { color:#18181b; }
 
-  .btn-dark { color:#fff; border:1px solid #09090b;
-    background:linear-gradient(180deg,#5a5d66 0%,#27272a 52%,#09090b 100%);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.4), 0 2px 6px rgba(0,0,0,.28); transition:filter .12s, transform .08s; }
-  .btn-dark:hover { filter:brightness(1.15); }
+  .btn-dark { color:#fff; background:#18181b; border:1px solid #18181b; transition:background .12s, transform .08s; }
+  .btn-dark:hover { background:#3f3f46; }
   .btn-dark:active { transform:translateY(1px); }
-  .btn-light { color:#3f3f46; border:1px solid #a9adb6;
-    background:linear-gradient(180deg,#ffffff 0%,#e9ebef 55%,#d3d6dc 100%);
-    box-shadow:inset 0 1px 0 #fff, 0 1px 3px rgba(0,0,0,.08); transition:filter .12s; }
-  .btn-light:hover { filter:brightness(1.04); }
+  .btn-light { color:#3f3f46; background:#fff; border:1px solid #d4d4d8; transition:background .12s, border-color .12s; }
+  .btn-light:hover { background:#f4f4f5; border-color:#a1a1aa; }
 
-  .kcard { background:linear-gradient(160deg,#ffffff 0%,#f7f8fa 52%,#e8eaee 100%);
-    box-shadow:inset 0 1px 0 #fff, 0 1px 3px rgba(0,0,0,.10); position:relative; }
-  .kcard::after { content:""; position:absolute; inset:0; pointer-events:none; z-index:3;
-    background:linear-gradient(115deg,transparent 38%,rgba(255,255,255,.85) 50%,transparent 62%);
-    transform:translateX(-130%); }
-  .kcard:hover::after { transform:translateX(130%); transition:transform .75s ease; }
-  .kcard.selected { outline:2px solid #18181b; outline-offset:2px; box-shadow:0 0 0 5px rgba(255,255,255,.7), 0 8px 24px rgba(0,0,0,.2); }
+  .kcard { background:#fff; border:1px solid #27272a; border-radius:8px; padding:7px 10px 8px; margin-bottom:5px;
+    box-shadow:none; position:relative; }
+  .kcard:hover { box-shadow:0 2px 8px rgba(0,0,0,.08); }
+  .kcard.selected { outline:2px solid #18181b; outline-offset:1px; box-shadow:none; }
 
-  .pill-co  { background:linear-gradient(180deg,#5a5d66 0%,#18181b 55%,#09090b 100%); box-shadow:inset 0 1px 0 rgba(255,255,255,.35); }
-  .pill-biz { background:linear-gradient(180deg,#fafbfc 0%,#cbced5 52%,#a9aeb8 100%); border:1px solid #8d929b; line-height:15px;
-    box-shadow:inset 0 1px 0 #fff; }
-  .pill-me  { background:linear-gradient(180deg,#ffffff,#e9ebef); box-shadow:inset 0 1px 0 #fff; }
-  .pu-urgent, .pu-late { position:relative; overflow:hidden;
-    background:linear-gradient(180deg,#5a5d66 0%,#18181b 55%,#09090b 100%); box-shadow:inset 0 1px 0 rgba(255,255,255,.4); }
-  .pu-urgent::after, .pu-late::after { content:""; position:absolute; inset:0;
-    background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.6) 50%,transparent 70%);
-    transform:translateX(-130%); animation:shine 3.4s ease-in-out infinite; }
-  .pu-important { background:linear-gradient(180deg,#ffffff,#cfd3da); box-shadow:inset 0 1px 0 #fff; }
-  .pu-normal, .pu-date { background:linear-gradient(180deg,#fafafb,#e9ebef); }
-  .tag-pill { background:linear-gradient(180deg,#fff,#eceef1); }
+  .pill-co  { background:#18181b; color:#fff; }
+  .pill-biz { background:#d4d4d8; color:#27272a; }
+  .pill-me  { background:#fff; color:#52525b; border:1px solid #a1a1aa; line-height:15px; }
+  .pu-urgent, .pu-late { background:#18181b; color:#fff; }
+  .pu-important { background:#fff; color:#18181b; border:1px solid #18181b; line-height:15px; }
+  .pu-normal, .pu-date { background:#f4f4f5; color:#71717a; }
+  .tag-pill { background:#f4f4f5; }
 
-  .sec-col { background:rgba(255,255,255,.5); border:1px solid #a9adb6; border-radius:16px; padding:0 10px 8px;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.9), 0 6px 22px rgba(0,0,0,.08); backdrop-filter:blur(6px);
-    transition:border-color .12s, box-shadow .12s; min-height:150px; }
-  .sec-col.over { border-color:#18181b; box-shadow:0 0 0 2px #18181b, 0 10px 30px rgba(0,0,0,.2); }
-  .sec-head { margin:0 -10px 10px; padding:11px 14px; border-radius:15px 15px 0 0; display:flex; align-items:center; gap:8px;
-    position:relative; overflow:hidden; }
-  .sec-head::after { content:""; position:absolute; inset:0; pointer-events:none;
-    background:linear-gradient(110deg,transparent 35%,rgba(255,255,255,.55) 50%,transparent 65%);
-    transform:translateX(-130%); animation:shine 6s ease-in-out infinite; }
-  .sec-head.todo { background:linear-gradient(180deg,#ffffff 0%,#e7e9ed 55%,#cdd0d7 100%); color:#18181b;
-    border-bottom:1px solid #a9adb6; box-shadow:inset 0 1px 0 #fff; }
-  .sec-head.wip  { background:linear-gradient(180deg,#8b8f99 0%,#51545c 50%,#34363b 100%); color:#fff;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.45); }
-  .sec-head.done { background:linear-gradient(180deg,#52525b 0%,#18181b 50%,#050506 100%); color:#fff;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.35); }
-  .sec-title { font-size:13px; font-weight:800; letter-spacing:.16em; }
-  .sec-count { min-width:22px; padding:0 7px; border-radius:999px; font-size:11px; font-weight:700; text-align:center;
-    line-height:20px; background:rgba(0,0,0,.12); }
-  .sec-head.wip .sec-count, .sec-head.done .sec-count { background:rgba(255,255,255,.22); }
+  .sec-col { background:#fafafb; border:1px solid #e1e3e8; border-radius:12px; padding:0 8px 5px; min-height:120px;
+    transition:border-color .12s, box-shadow .12s; }
+  .sec-col.over { border-color:#18181b; box-shadow:0 0 0 1px #18181b; }
+  .sec-head { margin:0 -8px 8px; padding:9px 12px; border-radius:11px 11px 0 0; display:flex; align-items:center; gap:8px; }
+  .sec-head.todo { background:#fff; color:#18181b; border-bottom:1px solid #e1e3e8; }
+  .sec-head.wip  { background:#52525b; color:#fff; }
+  .sec-head.done { background:#18181b; color:#fff; }
+  .sec-title { font-size:12px; font-weight:700; letter-spacing:.14em; }
+  .sec-count { min-width:20px; padding:0 6px; border-radius:999px; font-size:10.5px; font-weight:700; text-align:center;
+    line-height:18px; background:rgba(0,0,0,.08); }
+  .sec-head.wip .sec-count, .sec-head.done .sec-count { background:rgba(255,255,255,.2); }
 
-  .plan-day { background:linear-gradient(160deg,#fff,#eef0f3); border:1px solid #c4c7ce; }
-  .plan-day.has-content { background:linear-gradient(160deg,#f4f5f7,#dfe2e7); border-color:#8d929b; }
+  .plan-day { background:#fff; border:1px solid #e1e3e8; }
+  .plan-day.has-content { background:#f4f4f5; border-color:#a1a1aa; }
   .plan-day.today { border-color:#18181b; box-shadow:0 0 0 1px #18181b; }
 
+  /* 삭제 영역: 카드를 화면 아래쪽 1/3로 끌어갔을 때만 연한 붉은 음영으로 나타남 */
   .delete-zone { position:fixed; left:var(--dz-left,0px); right:0; bottom:0; height:33vh; z-index:400;
-    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
-    background:linear-gradient(to top,rgba(220,38,38,.78) 0%,rgba(220,38,38,.42) 55%,rgba(220,38,38,0) 100%);
-    border-top:2px dashed rgba(185,28,28,.5); color:#450a0a; font-weight:800; font-size:15px; letter-spacing:.03em;
-    animation:dzin .18s ease-out; transition:background .12s, color .12s; }
-  .delete-zone.over { color:#fff;
-    background:linear-gradient(to top,rgba(185,28,28,.95) 0%,rgba(239,68,68,.62) 60%,rgba(239,68,68,.12) 100%);
-    box-shadow:inset 0 -40px 80px rgba(255,255,255,.12), 0 -8px 40px rgba(220,38,38,.5); }
-  .delete-zone svg { filter:drop-shadow(0 2px 6px rgba(127,29,29,.4)); }
-
-  @keyframes shine { 0%,55% { transform:translateX(-130%); } 100% { transform:translateX(130%); } }
-  @keyframes dzin { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:none; } }
-  @media (prefers-reduced-motion: reduce) {
-    .logo-chrome::after, .pu-urgent::after, .pu-late::after, .sec-head::after { animation:none; }
-  }
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+    background:linear-gradient(to top,rgba(248,113,113,.50) 0%,rgba(248,113,113,.24) 60%,rgba(248,113,113,.04) 100%);
+    border-top:1px solid rgba(220,38,38,.35); color:#b91c1c; font-weight:700; font-size:14px;
+    animation:dzin .14s ease-out; }
+  .delete-zone svg { opacity:.85; }
+  @keyframes dzin { from { opacity:0; } to { opacity:1; } }
 `;
 
 const CAL_LABELS = [
@@ -544,7 +511,7 @@ function ChoiceGroup<T extends string>({options,value,onChange,allowClear}:{
             }}
             style={{padding:"5px 12px",borderRadius:999,fontSize:11.5,fontWeight:600,outline:"none",
               border:on?"1px solid #18181b":"1px solid #a1a1aa",
-              background:on?"linear-gradient(180deg,#52525b,#18181b 60%,#09090b)":"linear-gradient(180deg,#fff,#e4e6ea)",boxShadow:on?"inset 0 1px 0 rgba(255,255,255,.35)":"inset 0 1px 0 #fff",color:on?"#fff":"#52525b",cursor:"pointer",
+              background:on?"#18181b":"#fff",color:on?"#fff":"#52525b",cursor:"pointer",
               transition:"all .1s"}}
             className="panel-choice">
             {o.ko}
@@ -844,11 +811,11 @@ function CardTile({it,selected,onSelect,onOpen,onProgressChange}:{
       onClick={()=>{onSelect(k);onOpen(it);}}
       style={{position:"relative",overflow:"hidden",opacity:done?.62:1}}>
       <ProgTopBar prog={prog} onChange={v=>onProgressChange(card.id,boardId,v)}/>
-      <div style={{marginTop:5}}><CardHead card={card} boardId={boardId}/></div>
-      <div style={{marginTop:8,fontSize:13,color:"#111",lineHeight:1.45,wordBreak:"break-word",fontWeight:500,
+      <div style={{marginTop:3}}><CardHead card={card} boardId={boardId}/></div>
+      <div style={{marginTop:4,fontSize:13,color:"#111",lineHeight:1.4,wordBreak:"break-word",fontWeight:500,
         textDecoration:done?"line-through":"none"}}>{card.title}</div>
       {((card.tags||[]).length>0||prog>0)&&(
-        <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:4,marginTop:8}}>
+        <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:4,marginTop:5}}>
           {(card.tags||[]).map(t=><span key={t} className="tag-pill">{t}</span>)}
           {prog>0&&<span style={{marginLeft:"auto",fontSize:10,color:"#71717a",fontWeight:700}}>{prog}%</span>}
         </div>
@@ -870,7 +837,7 @@ function KanbanView({items,selectedKey,onSelect,onOpen,onProgressChange,onMove,o
 }) {
   const [over,setOver]=useState<string|null>(null);
   return (
-    <div style={{display:"grid",gap:14,alignItems:"start",
+    <div style={{display:"grid",gap:12,alignItems:"start",
       gridTemplateColumns:isMobile?"1fr":"repeat(3,minmax(0,1fr))"}}>
       {SECTIONS.map(sec=>{
         const list=items.filter(i=>statusOf(i.card)===sec.id)
@@ -893,7 +860,7 @@ function KanbanView({items,selectedKey,onSelect,onOpen,onProgressChange,onMove,o
                 onSelect={onSelect} onOpen={onOpen} onProgressChange={onProgressChange}/>
             ))}
             {!list.length&&(
-              <div style={{textAlign:"center",color:"#a1a1aa",fontSize:11.5,padding:"26px 0"}}>
+              <div style={{textAlign:"center",color:"#a1a1aa",fontSize:11.5,padding:"18px 0"}}>
                 {over===sec.id?"여기에 놓기":"비어 있음"}
               </div>
             )}
@@ -982,7 +949,7 @@ function HelpOverlay({onClose}:{onClose:()=>void}) {
           </div>
         ))}
         <div style={{marginTop:12,fontSize:11,color:"#a1a1aa",lineHeight:1.6}}>
-          카드를 끌면 화면 아래쪽 1/3에 붉은 삭제 영역이 나타나요. 아무 곳에나 놓으면 삭제되고, 6초 안에 되돌릴 수 있어요.
+          카드를 끌어서 화면 아래쪽 1/3로 가져가면 연한 붉은 삭제 영역이 나타나요. 거기에 놓으면 삭제되고, 6초 안에 되돌릴 수 있어요.
         </div>
       </div>
     </div>
@@ -1194,11 +1161,19 @@ export default function App() {
   useEffect(()=>{
     const start=()=>{ if(gDrag.cardId) setDragging(true); };
     const end=()=>{ setDragging(false); setTrashOver(false); };
+    // 카드를 화면 아래쪽 1/3로 가져갈 때만 삭제 영역을 보여줌 (보드 간 이동 때는 나타나지 않음)
+    const over=(e:DragEvent)=>{
+      if(!gDrag.cardId) return;
+      const left=window.innerWidth<900?0:SIDEBAR_W;
+      setTrashOver(e.clientY>=window.innerHeight*0.67&&e.clientX>=left);
+    };
     window.addEventListener("dragstart",start);
+    window.addEventListener("dragover",over);
     window.addEventListener("dragend",end);
     window.addEventListener("drop",end);
     return ()=>{
       window.removeEventListener("dragstart",start);
+      window.removeEventListener("dragover",over);
       window.removeEventListener("dragend",end);
       window.removeEventListener("drop",end);
     };
@@ -1266,9 +1241,13 @@ export default function App() {
     }catch(e){alert("TO-DO 추가 실패: "+e);}
   };
 
+  const deleting=useRef<Set<string>>(new Set());
   const deleteCard=async(cardId:string,boardId:string)=>{
+    const dk=`${boardId}:${cardId}`;
+    if(deleting.current.has(dk)) return; // 키 반복·중복 호출 방지
     const card=boardsRef.current[boardId]?.find(c=>c.id===cardId);
     if(!card) return;
+    deleting.current.add(dk);
     const idx=orderedItems.findIndex(i=>i.card.id===cardId&&i.boardId===boardId);
     const neighbor=orderedItems[idx+1]||orderedItems[idx-1];
     setSelectedKey(neighbor?itemKey(neighbor):null);
@@ -1285,9 +1264,14 @@ export default function App() {
         }catch(e){alert("되돌리기 실패: "+e);}
       });
     }catch(e){
-      setBoards(prev=>({...prev,[boardId]:[...prev[boardId],card]}));
-      alert("삭제 실패: "+e);
-    }
+      // 이미 시트에서 지워진 카드(Not Found)는 삭제된 것으로 처리
+      if(String(e).includes("Not Found")){
+        showToast(`"${card.title.slice(0,24)}" 삭제됨`);
+      } else {
+        setBoards(prev=>({...prev,[boardId]:[...prev[boardId],card]}));
+        alert("삭제 실패: "+e);
+      }
+    }finally{ deleting.current.delete(dk); }
   };
 
   const cleanupDelete=async(ids:string[])=>{
@@ -1377,7 +1361,7 @@ export default function App() {
       } else if(e.key==="Enter"&&idx>=0){
         e.preventDefault(); k.openCard(list[idx].card,list[idx].boardId);
       } else if((e.key==="Delete"||e.key==="Backspace")&&idx>=0){
-        e.preventDefault(); k.deleteCard(list[idx].card.id,list[idx].boardId);
+        e.preventDefault(); if(e.repeat) return; k.deleteCard(list[idx].card.id,list[idx].boardId);
       }
     };
     window.addEventListener("keydown",h);
@@ -1397,8 +1381,7 @@ export default function App() {
     padding:"6px 10px",paddingLeft:indent?26:10,borderRadius:8,marginBottom:2,fontSize:12,fontWeight:active?700:500,
     cursor:"pointer",display:"flex",alignItems:"center",gap:7,width:"100%",textAlign:"left",
     color:active?"#fff":"#52525b",
-    background:active?"linear-gradient(180deg,#52525b,#18181b)":"transparent",
-    boxShadow:active?"inset 0 1px 0 rgba(255,255,255,.35)":"none",
+    background:active?"#18181b":"transparent",
   });
 
   return (
@@ -1482,7 +1465,7 @@ export default function App() {
 
         <div style={{flex:1,minWidth:0,overflowY:"auto",display:"flex",flexDirection:"column"}}>
           {/* Toolbar */}
-          <div style={{position:"sticky",top:0,zIndex:20,background:"rgba(232,234,238,.82)",backdropFilter:"blur(10px)",
+          <div style={{position:"sticky",top:0,zIndex:20,background:"rgba(241,242,244,.9)",backdropFilter:"blur(8px)",
             padding:isMobile?"10px 8px 8px":"14px 18px 10px",display:"flex",flexDirection:"column",gap:8}}>
             {isMobile&&(
               <div style={{display:"inline-flex",alignSelf:"flex-start",background:"#fff",border:"1px solid #18181b",borderRadius:999,padding:2}}>
@@ -1538,12 +1521,12 @@ export default function App() {
       {/* 하단 단축키 힌트 (데스크톱) */}
       {!isMobile&&!showPanel&&!dragging&&view==="kanban"&&(
         <div style={{position:"fixed",left:SIDEBAR_W,right:0,bottom:0,zIndex:90,padding:"7px 18px",
-          background:"rgba(244,245,247,.9)",backdropFilter:"blur(8px)",borderTop:"1px solid #b4b8c0",
+          background:"rgba(255,255,255,.92)",backdropFilter:"blur(8px)",borderTop:"1px solid #e1e3e8",
           fontSize:10.5,color:"#71717a",display:"flex",gap:14,flexWrap:"wrap",alignItems:"center"}}>
           <span><span className="kbd">+</span> 추가</span>
           <span><span className="kbd">↑</span><span className="kbd" style={{marginLeft:2}}>↓</span> 선택</span>
           <span><span className="kbd">Enter</span> 편집</span>
-          <span><span className="kbd">Delete</span> 삭제</span>
+          <span><span className="kbd">Delete</span> 삭제 (카드를 아래로 끌어도 삭제)</span>
           <span><span className="kbd">Tab</span> 다음 항목</span>
           <span><span className="kbd">Esc</span> 닫기</span>
           <span><span className="kbd">?</span> 전체 단축키</span>
@@ -1551,23 +1534,22 @@ export default function App() {
       )}
 
       {/* 드래그 삭제 영역 — 화면 아래 1/3, 붉은 음영 */}
-      {dragging&&(
-        <div className={`delete-zone${trashOver?" over":""}`}
+      {dragging&&trashOver&&(
+        <div className="delete-zone"
           style={{["--dz-left" as any]:isMobile?"0px":`${SIDEBAR_W}px`}}
-          onDragOver={e=>{e.preventDefault();e.dataTransfer.dropEffect="move";setTrashOver(true);}}
-          onDragLeave={()=>setTrashOver(false)}
+          onDragOver={e=>{e.preventDefault();e.dataTransfer.dropEffect="move";}}
           onDrop={handleTrashDrop}>
           <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v7M14 10v7"/>
           </svg>
-          <span>{trashOver?"놓으면 삭제돼요":"여기로 끌어다 놓으면 삭제"}</span>
+          <span>여기에 놓으면 삭제돼요</span>
         </div>
       )}
 
       {toast&&(
         <div style={{position:"fixed",left:"50%",bottom:isMobile?18:48,transform:"translateX(-50%)",zIndex:450,
-          background:"linear-gradient(180deg,#3f3f46,#09090b)",color:"#fff",borderRadius:999,padding:"9px 18px",fontSize:12,
-          display:"flex",alignItems:"center",gap:14,boxShadow:"0 8px 28px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.3)",maxWidth:"92vw"}}>
+          background:"#18181b",color:"#fff",borderRadius:999,padding:"9px 18px",fontSize:12,
+          display:"flex",alignItems:"center",gap:14,boxShadow:"0 6px 20px rgba(0,0,0,.2)",maxWidth:"92vw"}}>
           <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{toast.msg}</span>
           {toast.undo&&<button onClick={toast.undo} style={{color:"#fff",fontWeight:700,textDecoration:"underline",fontSize:12}}>되돌리기</button>}
         </div>
