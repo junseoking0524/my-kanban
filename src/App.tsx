@@ -325,14 +325,21 @@ function apiFetch(method:string, boardId:string, body?:any, cardId?:string) {
     method,
     headers:{"Content-Type":"application/json"},
     body: body ? JSON.stringify(body) : undefined,
-  }).then(r => r.ok ? r.json() : Promise.reject(r.statusText));
+  }).then(httpJson);
+}
+// 서버가 보낸 오류 메시지를 그대로 보여주기 위함 (예: 시트 권한/탭 문제)
+async function httpJson(r:Response){
+  if(r.ok) return r.json();
+  let msg=r.statusText||String(r.status);
+  try{ const j=await r.json(); if(j?.error) msg=j.error; }catch{ /* ignore */ }
+  return Promise.reject(msg);
 }
 async function mandalaFetch(method:string, body?:any) {
   return fetch("/api/mandala", {
     method,
     headers:{"Content-Type":"application/json"},
     body: body ? JSON.stringify(body) : undefined,
-  }).then(r => r.ok ? r.json() : Promise.reject(r.statusText));
+  }).then(httpJson);
 }
 
 function useIsMobile() {
@@ -710,10 +717,10 @@ function MandalaView() {
   const [loading,setLoading] = useState(true);
   const [editingCell,setEditingCell] = useState<[number,number]|null>(null);
   const [cellInput,setCellInput] = useState("");
-  const isSaving = useRef(false);
+  const saveQueue = useRef<Promise<unknown>>(Promise.resolve());
 
   useEffect(()=>{
-    mandalaFetch("GET").then(d=>{setGrid(d.grid||Array.from({length:9},()=>Array(9).fill("")));setLoading(false);})
+    mandalaFetch("GET").then(d=>{setGrid(Array.from({length:9},(_,r)=>Array.from({length:9},(_,c)=>d.grid?.[r]?.[c]??"")));setLoading(false);})
       .catch(()=>setLoading(false));
   },[]);
 
@@ -724,10 +731,10 @@ function MandalaView() {
   const commitEdit=async(r:number,c:number,val:string)=>{
     setGrid(prev=>{const g=prev.map(row=>[...row]);g[r][c]=val;return g;});
     setEditingCell(null);
-    if(!isSaving.current){
-      isSaving.current=true;
-      mandalaFetch("POST",{row:r,col:c,value:val}).finally(()=>{isSaving.current=false;});
-    }
+    // 이전 저장이 진행 중이어도 건너뛰지 않고 순서대로 저장
+    saveQueue.current=saveQueue.current
+      .then(()=>mandalaFetch("POST",{row:r,col:c,value:val}))
+      .catch(e=>{alert("만다라트 저장 실패: "+e);});
   };
 
   if(loading) return <div style={{textAlign:"center",color:"var(--text-light)",padding:"30px 0",fontSize:12}}>만다라트 불러오는 중…</div>;

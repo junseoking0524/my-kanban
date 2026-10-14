@@ -28,6 +28,27 @@ async function getAuth() {
 // 시트 컬럼: A id | B colId | C title | D note | E dueDate | F labelId | G calEventId
 //           H tags(JSON) | I progress | J category | K priority
 const LAST_COL = 'K';
+const gridChecked = new Set();
+
+// 탭의 열 수가 11(K)보다 적으면 쓰기가 'exceeds grid limits'로 실패하므로 미리 늘려 둔다
+async function ensureGrid(sheets, sheetName) {
+  if (gridChecked.has(sheetName)) return;
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId: SHEET_ID,
+    fields: 'sheets.properties(sheetId,title,gridProperties)',
+  });
+  const tab = meta.data.sheets.find(s => s.properties.title === sheetName);
+  if (!tab) throw new Error(`'${sheetName}' 탭을 시트에서 찾을 수 없어요`);
+  const have = tab.properties.gridProperties?.columnCount || 0;
+  if (have < 11) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SHEET_ID,
+      requestBody: { requests: [{ appendDimension: { sheetId: tab.properties.sheetId, dimension: 'COLUMNS', length: 11 - have } }] },
+    });
+  }
+  gridChecked.add(sheetName);
+}
+
 let headerChecked = false;
 
 function rowToCard(r) {
@@ -123,6 +144,8 @@ export default async function handler(req, res) {
   };
 
   try {
+    await ensureGrid(sheets, sheetName);
+
     // 확장 컬럼 헤더(H1:K1)를 한 번만 보장
     if (!headerChecked) {
       headerChecked = true;
