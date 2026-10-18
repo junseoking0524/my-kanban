@@ -842,11 +842,41 @@ function CardTile({it,selected,onSelect,onOpen,onProgressChange}:{
 }
 
 // '+' 빠른 입력: 패널 없이 컬럼 위에서 바로 입력 → Enter로 계속 추가, Esc로 종료
-function parseQuick(raw:string){
-  let title=raw.trim(), dueDate="";
-  const m=title.match(/^(\d{1,2})\/(\d{1,2})(?:\s+(\d{1,2}:\d{2}))?\s+(.+)$/); // "10/20 제목" 또는 "10/20 14:00 제목"
-  if(m){ dueDate=displayToDueDate(`${m[1]}/${m[2]}${m[3]?" "+m[3]:""}`); title=m[4].trim(); }
-  return {title,dueDate};
+// 빠른 입력 해석: 문장 어디에 있어도 날짜(10/28, 10/28(수)), 요일(수 / 수요일 → 가장 가까운 수요일),
+// 오늘·내일·모레, 시간(14:00), 구분 ((회사)·(Biz)·(개인))을 뽑아 제목에서 빼고 속성으로 넣는다.
+function parseQuick(raw:string,now=new Date()){
+  let t=" "+raw.trim()+" ";
+  let dueDate="", category:""|"company"|"biz"|"personal"="";
+  const cm=t.match(/[(（\[]\s*(회사|biz|비즈|개인)\s*[)）\]]/i);
+  if(cm){
+    const k=cm[1].toLowerCase();
+    category=k==="회사"?"company":k==="개인"?"personal":"biz";
+    t=t.replace(cm[0]," ");
+  }
+  const ymd=(d:Date)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  const DAYS="일월화수목금토";
+  const dm=t.match(/\s(\d{1,2})\/(\d{1,2})(?:\s*[(（][월화수목금토일][)）])?(?=\s)/);
+  if(dm){
+    dueDate=displayToDueDate(`${dm[1]}/${dm[2]}`);
+    t=t.replace(dm[0]," ");
+  } else {
+    const wm=t.match(/\s(오늘|내일|모레|([월화수목금토일])(?:요일)?)(?=\s)/);
+    if(wm){
+      const d=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+      if(wm[1]==="내일") d.setDate(d.getDate()+1);
+      else if(wm[1]==="모레") d.setDate(d.getDate()+2);
+      else if(wm[2]) d.setDate(d.getDate()+((DAYS.indexOf(wm[2])-d.getDay()+7)%7));
+      dueDate=ymd(d);
+      t=t.replace(wm[0]," ");
+    }
+  }
+  if(dueDate){
+    const tm=t.match(/\s(\d{1,2}:\d{2})(?=\s)/);
+    if(tm){ dueDate=dueDate.slice(0,10)+"T"+tm[1].padStart(5,"0"); t=t.replace(tm[0]," "); }
+  }
+  const title=t.replace(/\s+/g," ").trim();
+  if(!title) return {title:raw.replace(/[(（\[].*?[)）\]]/g," ").trim()||raw.trim(),dueDate,category}; // 제목이 남지 않으면 입력한 말(예: "수요일")을 제목으로
+  return {title,dueDate,category};
 }
 function QuickBar({label,onAdd,onClose,isMobile}:{label:string;onAdd:(text:string)=>void;onClose:()=>void;isMobile:boolean}) {
   const [val,setVal]=useState("");
@@ -868,7 +898,7 @@ function QuickBar({label,onAdd,onClose,isMobile}:{label:string;onAdd:(text:strin
         style={{width:"100%",border:"1px dashed #8d929b",borderRadius:8,padding:"7px 10px",background:"#fff",
           fontSize:isMobile?16:13,color:"#18181b",outline:"none",fontFamily:"inherit"}}/>
       <div style={{fontSize:10,color:"#a1a1aa",margin:"3px 2px 0"}}>
-        Enter 계속 추가 · Esc 닫기 · <span style={{color:"#71717a"}}>10/20 제목</span> 으로 마감일 지정
+        Enter 계속 추가 · Esc 닫기 · <span style={{color:"#71717a"}}>10/28 · 수요일 · 내일</span> 날짜 · <span style={{color:"#71717a"}}>(회사)(Biz)(개인)</span> 구분
       </div>
     </div>
   );
@@ -1312,9 +1342,10 @@ export default function App() {
   // '+' 빠른 입력
   const openQuick=(status="todo")=>{ setView("kanban"); setQuickStatus(status); };
   const handleQuickAdd=(status:string,text:string)=>{
-    const {title,dueDate}=parseQuick(text);
+    const q=parseQuick(text);
+    const {title,dueDate}=q;
     if(!title) return;
-    const category=catFilter==="all"?"company":catFilter;
+    const category=q.category||(catFilter==="all"?"company":catFilter);
     createCard({id:"",colId:status,title,dueDate,category,priority:"normal"},false);
   };
 
