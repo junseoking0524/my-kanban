@@ -1517,6 +1517,30 @@ export default function App() {
 
   const goKanban=(f:CatFilter)=>{ setView("kanban"); setCatFilter(f); };
 
+  // 모바일: 맨 위에서 아래로 당기면 새로고침
+  const scrollerRef=useRef<HTMLDivElement>(null);
+  const [pull,setPull]=useState(0);
+  const [refreshing,setRefreshing]=useState(false);
+  const pullStart=useRef<{y:number;x:number}|null>(null);
+  const PULL_AT=80;
+  const pullHandlers={
+    onTouchStart:(e:React.TouchEvent)=>{
+      const t=e.touches[0];
+      pullStart.current=(scrollerRef.current?.scrollTop||0)<=0&&!showPanel?{y:t.clientY,x:t.clientX}:null;
+    },
+    onTouchMove:(e:React.TouchEvent)=>{
+      const s0=pullStart.current; if(!s0||refreshing) return;
+      const t=e.touches[0], dy=t.clientY-s0.y, dx=t.clientX-s0.x;
+      if(dy<=0||Math.abs(dx)>dy*0.7||(scrollerRef.current?.scrollTop||0)>0){ if(pull) setPull(0); return; }
+      setPull(Math.min(dy*0.5,110));
+    },
+    onTouchEnd:()=>{
+      const was=pull; pullStart.current=null;
+      if(was>=PULL_AT*0.5&&!refreshing){ setRefreshing(true); setPull(48); setTimeout(()=>window.location.reload(),250); }
+      else setPull(0);
+    },
+  };
+
   // 모바일: 좌우로 밀어서 칸반 ↔ 만다라트 ↔ 플래닝 ↔ 식단·운동 전환
   const VIEW_ORDER:ViewId[]=["kanban","mandala","planning","nutrition"];
   const swipeStart=useRef<{x:number;y:number;ok:boolean}|null>(null);
@@ -1691,7 +1715,18 @@ export default function App() {
           </div>
         )}
 
-        <div style={{flex:1,minWidth:0,overflowY:"auto",display:"flex",flexDirection:"column"}}>
+        <div ref={scrollerRef} style={{flex:1,minWidth:0,overflowY:"auto",display:"flex",flexDirection:"column",
+          overscrollBehaviorY:"contain",position:"relative"}}
+          {...(isMobile?pullHandlers:{})}>
+          {isMobile&&(pull>0||refreshing)&&(
+            <div style={{position:"fixed",top:52,left:0,right:0,zIndex:60,display:"flex",justifyContent:"center",pointerEvents:"none",
+              transform:`translateY(${Math.min(pull,60)-30}px)`,opacity:Math.min(1,pull/40)}}>
+              <div style={{background:"#18181b",color:"#fff",fontSize:11.5,fontWeight:600,padding:"6px 14px",borderRadius:999,
+                boxShadow:"0 4px 14px rgba(0,0,0,.25)"}}>
+                {refreshing?"새로고침 중…":pull>=PULL_AT*0.5?"↑ 놓으면 새로고침":"↓ 당겨서 새로고침"}
+              </div>
+            </div>
+          )}
           {/* Toolbar */}
           <div style={{position:"sticky",top:0,zIndex:20,background:"rgba(241,242,244,.9)",backdropFilter:"blur(8px)",
             padding:isMobile?"10px 8px 8px":"14px 18px 10px",display:"flex",flexDirection:"column",gap:8}}>
