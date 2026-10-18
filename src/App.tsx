@@ -514,7 +514,7 @@ function ChoiceGroup<T extends string>({options,value,onChange,allowClear}:{
               } else if(e.key===" "){
                 e.preventDefault(); onChange(on&&allowClear?undefined:o.id);
               } else if(e.key==="Enter"){
-                e.preventDefault(); onChange(o.id); focusNextField(e.currentTarget);
+                onChange(o.id); // Enter는 패널에서 저장 처리
               }
             }}
             style={{padding:"5px 12px",borderRadius:999,fontSize:11.5,fontWeight:600,outline:"none",
@@ -576,6 +576,9 @@ function SidePanel({card,boardId,onClose,onSave,onDelete,allTags}:{
     onSave({...form,title,tags,dueDate:displayToDueDate(dueDateDisplay)},keepOpen&&!form.id);
   };
 
+  // 바깥을 눌러 닫을 때도 입력한 내용은 저장 (제목이 비어 있으면 그냥 닫기)
+  const closeAndSave=()=>{ if(form.title.trim()) doSave(); else onClose(); };
+
   const inputStyle:React.CSSProperties={
     width:"100%", border:"1px solid #1a1a1a", borderRadius:8,
     padding:"8px 10px", fontSize:12.5, background:"#fff", color:"#1a1a1a",
@@ -586,9 +589,15 @@ function SidePanel({card,boardId,onClose,onSave,onDelete,allTags}:{
     <div data-panel="1" style={{position:"fixed",inset:0,zIndex:300,display:"flex"}}
       onKeyDown={e=>{
         if(e.key==="Escape"){e.stopPropagation();onClose();}
-        if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();doSave();}
+        if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();doSave();return;}
+        // 메모 칸 밖 어디서든 Enter → 저장 (메모는 줄바꿈)
+        const t=e.target as HTMLElement;
+        if(e.key==="Enter"&&!e.shiftKey&&!e.defaultPrevented&&!e.nativeEvent.isComposing
+          &&!t.hasAttribute("data-note")&&!(t.tagName==="BUTTON"&&t.textContent?.trim()==="삭제")){
+          e.preventDefault(); if(!e.repeat) doSave(true);
+        }
       }}>
-      <div onClick={onClose} style={{flex:1,background:"rgba(24,24,27,.28)",backdropFilter:"blur(2px)"}}/>
+      <div onClick={closeAndSave} style={{flex:1,background:"rgba(24,24,27,.28)",backdropFilter:"blur(2px)"}}/>
       <div style={{width:320,maxWidth:"100vw",background:"#fff",borderLeft:"1px solid #d4d4d8",
         display:"flex",flexDirection:"column",overflowY:"auto",
         boxShadow:"-10px 0 32px rgba(0,0,0,.10)"}}>
@@ -625,13 +634,13 @@ function SidePanel({card,boardId,onClose,onSave,onDelete,allTags}:{
             <input data-f="1" value={dueDateDisplay}
               onChange={e=>setDueDateDisplay(e.target.value)}
               onBlur={commitDue}
-              onKeyDown={e=>{if(e.key==="Enter"&&!e.ctrlKey&&!e.metaKey){e.preventDefault();commitDue();focusNextField(e.currentTarget);}}}
+              onKeyDown={e=>{if(e.key==="Enter"&&!e.ctrlKey&&!e.metaKey)commitDue();}}
               placeholder="06/17 또는 06/17 14:00"
               className="panel-field-input" style={{...inputStyle,fontSize:12}}/>
           </PanelField>
 
           <PanelField label="메모" hint="Tab으로 다음 항목">
-            <textarea data-f="1" value={form.note||""} onChange={e=>setForm(f=>({...f,note:e.target.value}))} rows={3}
+            <textarea data-f="1" data-note="1" value={form.note||""} onChange={e=>setForm(f=>({...f,note:e.target.value}))} rows={3}
               className="panel-field-input" style={{...inputStyle,resize:"none",fontSize:12,lineHeight:1.5}}/>
           </PanelField>
 
@@ -646,7 +655,7 @@ function SidePanel({card,boardId,onClose,onSave,onDelete,allTags}:{
               onKeyDown={e=>{
                 if((e.key==="Enter"||e.key===",")&&!e.ctrlKey&&!e.metaKey&&!e.nativeEvent.isComposing){
                   e.preventDefault();
-                  if(!addTag()&&e.key==="Enter") focusNextField(e.currentTarget);
+                  if(!addTag()&&e.key==="Enter"){ doSave(true); }
                 }
                 if(e.key==="Backspace"&&!tagInput&&(form.tags||[]).length){
                   setForm(f=>({...f,tags:(f.tags||[]).slice(0,-1)}));
