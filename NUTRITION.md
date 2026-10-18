@@ -1,3 +1,22 @@
+# diet_obokpapa — summary sync update
+
+This section supersedes the earlier local-only notes below.
+
+- Input page: `/nutrition.html`. Kanban summary: `/?view=nutrition`.
+- Existing Google Sheets service-account configuration is reused. The server creates only a new tab: `diet_obokpapa_preview` for preview and `diet_obokpapa` for production. Existing work/personal/mandala tabs are untouched.
+- Set server-only `DIET_ACCESS_PASSWORD` (a unique randomly generated password of at least 24 characters) before enabling sync. This is an app password, never a GitHub/Google/Vercel account password. Store as Secret. Do not put it in source code or any VITE variable.
+- The password also protects AES-256-GCM data encryption. Do not replace it after records exist without decrypt/re-encrypt migration; an arbitrary change makes earlier records unreadable. Keep it in a password manager.
+- The API is fail-closed until configured. Login uses an HttpOnly Secure SameSite cookie, valid for 30 days. POSTs must be same-origin JSON. There is no wildcard CORS.
+- Only daily macro totals, missing-nutrient counts, weights, water, sleep, exercise summary, completed-set count/volume, supplement taken labels and goals are uploaded. No food names, meal items, menus, photos, supplement doses/ingredients or exercise-set details are sent.
+- One input browser is bound on the first accepted save. Other browsers can log in to read the summary. This release does NOT support switching the input device or merging edits across multiple input devices. Keep JSON backups of the input browser; server aggregates cannot restore meal details.
+- In the input page, click Connect once (or Existing login after reopening). While open, changes are sent every 5 seconds; the dashboard reads every 30 seconds after connecting. The app does not run in the background after Safari is closed.
+- A persistent pending operation ID supports retry after a lost network response. Sheets append order and base revisions reject conflicting snapshots and prevent stale overwrite; conflicts stop automatic upload. Local input stays intact.
+- Preview and production tabs are separate. Testing a preview never writes the production diet tab. First production connection must be made on the husband's chosen input browser (Safari or its home-screen app).
+- Current release gate: TypeScript build, Vite build and 16 tests pass. Live Sheets read/write verification remains pending until the app-specific password is configured and the preview is redeployed. No claim of live sync completion is made before that check.
+- Fleek API import is not connected. Screenshot/JSON/manual workout entry remains available. Image recognition still requires its separate provider configuration.
+
+---
+
 # 식단·운동 탭
 
 남편의 근육 증가와 체중 감량을 함께 기록하는 모바일 우선 화면입니다. 기존 칸반/만다라트/플래닝 데이터 및 API는 수정하지 않습니다.
