@@ -1,0 +1,48 @@
+export type Food = { id: string; name: string; kcal: number | null; protein: number | null; carbs?: number | null; fat?: number | null; hidden?: boolean; portion: string; source: string };
+export type Meal = Food & { amount: number; meal: string };
+export type WorkoutSet = { kg: number | null; reps: number | null; done: boolean };
+export type Workout = { name: string; bodyPart: string; sets: WorkoutSet[] };
+export type Supplement = { id: string; category: string; product: string; serving: string; ingredients: {name:string; amount:number; unit:string}[]; timing:string; note:string };
+export type Day = { cloudNutrition?: {kcal:number;protein:number;carbs:number;fat:number;unknown:number;unknownMacros:number}; morning?: number; bedtimeWeight?: number; water: number; sleep: string; meals: Meal[]; breakfast: string; supplements: string[]; exercise: string; minutes: number; intensity: string; bodyPart: string; burned?: number; workouts?: Workout[] };
+export type State = { version: 1; days: Record<string, Day>; foods: Food[]; plans: Record<string, Food[]>; supplementProducts?: Supplement[]; settings: { goal?: {startWeight:number; targetWeight:number; startDate:string}; carbs?:number; fat?:number; calories: number; protein: number; water: number; age: number; height: number; weight: number; smoothie: { avocado: number; blueberry: number; milk: number; honey: number } } };
+export const supplements = ['비타민C','비타민B','마그네슘','칼슘','크레아틴','EAA','오메가3','글루타민','엽산','유산균'];
+export const today = () => new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul'}).format(new Date());
+export function offsetDate(date: string, offset: number) { const d = new Date(date+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+offset); return d.toISOString().slice(0,10); }
+export const emptyDay = (): Day => ({water:0,sleep:'',meals:[],breakfast:'미기록',supplements:[],exercise:'미기록',minutes:0,intensity:'보통',bodyPart:'전신'});
+export const initial = (): State => ({version:1,days:{},plans:{},foods:[],settings:{calories:0,protein:0,water:0,age:0,height:0,weight:0,smoothie:{avocado:0,blueberry:0,milk:0,honey:0}}});
+export const presets: Food[] = [
+ ['rice','밥','210g',310,6,68,1],['chicken','닭가슴살 · 익힌 것','100g',165,31,0,3.6],['tofu','두부','150g',120,12,3,7],['egg','달걀','1개',75,6,.6,5],['salmon','연어 · 익힌 것','100g',206,22,0,12],['vegetable','채소 · 소스 제외','150g',45,2,9,.5],['yogurt','플레인 그릭요거트','100g',100,9,4,5],['banana','바나나','1개',105,1.3,27,.4],
+].map(([id,name,portion,kcal,protein,carbs,fat])=>({id:String(id),name:String(name),portion:String(portion),kcal:Number(kcal),protein:Number(protein),carbs:Number(carbs),fat:Number(fat),source:'일반 식품 참고 추정값 · 제품/조리법에 따라 다름'}));
+export function totals(day: Day) { if(day.cloudNutrition)return day.cloudNutrition; return day.meals.reduce((a,m)=>({kcal:a.kcal+(m.kcal??0)*m.amount,protein:a.protein+(m.protein??0)*m.amount,carbs:a.carbs+(m.carbs??0)*m.amount,fat:a.fat+(m.fat??0)*m.amount,unknown:a.unknown+(m.kcal==null||m.protein==null?1:0),unknownMacros:a.unknownMacros+(m.carbs==null||m.fat==null?1:0)}),{kcal:0,protein:0,carbs:0,fat:0,unknown:0,unknownMacros:0}); }
+export function smoothie(s: State['settings']['smoothie']): Food { return {id:'smoothie',name:'갈갈이',portion:`아보카도 ${s.avocado}g · 블루베리 ${s.blueberry}g · 우유 ${s.milk}ml · 꿀 ${s.honey}g`,kcal:s.avocado*1.6+s.blueberry*.57+s.milk*.61+s.honey*3.04,protein:s.avocado*.02+s.blueberry*.007+s.milk*.032,carbs:s.avocado*.085+s.blueberry*.145+s.milk*.048+s.honey*.824,fat:s.avocado*.147+s.blueberry*.003+s.milk*.033,source:'일반 식품 기준 추정 · 우유 종류에 따라 다름'}; }
+export function csvCell(value: unknown) { let s=String(value??''); if (/^[=+@\-\t\r]/.test(s)) s="'"+s; return '"'+s.replace(/"/g,'""')+'"'; }
+export function exportCSV(state: State) { const rows: unknown[][] = [['날짜','아침공복kg','해당일취침전kg','섭취kcal_추정','단백질g_추정','탄수화물g_추정','지방g_추정','탄수지방미확인항목','영양미확인항목','물ml','취침시각','운동','분','강도','부위','운동소모kcal_기록값','보충제','식사상세','운동세트상세']]; Object.entries(state.days).sort().forEach(([date,d])=>{const t=totals(d);rows.push([date,d.morning,d.bedtimeWeight,Math.round(t.kcal),Math.round(t.protein*10)/10,Math.round(t.carbs*10)/10,Math.round(t.fat*10)/10,t.unknownMacros,t.unknown,d.water,d.sleep,d.exercise,d.minutes,d.intensity,d.bodyPart,d.burned,d.supplements.map(id=>{const p=state.supplementProducts?.find(p=>'product:'+p.id===id);return p?`${p.product} (${p.serving}; ${p.ingredients.map(i=>i.name+' '+i.amount+i.unit).join(', ')})`:id;}).join(' / '),d.meals.map(m=>`${m.meal}: ${m.name} ${m.portion} ×${m.amount}`).join(' | '),JSON.stringify(d.workouts??[])]);}); return '\uFEFF'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n'); }
+export function validateState(v: unknown): v is State {
+ if(!v||typeof v!=='object')return false; const s=v as State;
+ const num=(x:unknown)=>typeof x==='number'&&Number.isFinite(x)&&x>=0;
+ const food=(f:Food)=>f&&typeof f.id==='string'&&typeof f.name==='string'&&typeof f.portion==='string'&&typeof f.source==='string'&&(f.kcal===null||num(f.kcal))&&(f.protein===null||num(f.protein))&&(f.carbs==null||num(f.carbs))&&(f.fat==null||num(f.fat));
+ return (s.supplementProducts===undefined||Array.isArray(s.supplementProducts)&&s.supplementProducts.every(p=>p&&['id','category','product','serving','timing','note'].every(k=>typeof p[k]==='string')&&Array.isArray(p.ingredients)&&p.ingredients.every(i=>typeof i.name==='string'&&num(i.amount)&&['mg','g','μg','IU'].includes(i.unit)))) && (s.settings?.goal===undefined||num(s.settings.goal.startWeight)&&num(s.settings.goal.targetWeight)&&validDate(s.settings.goal.startDate)) && (s.settings?.carbs===undefined||num(s.settings.carbs)) && (s.settings?.fat===undefined||num(s.settings.fat)) && s.version===1 && !!s.settings && ['calories','protein','water','age','height','weight'].every(k=>num(s.settings[k])) && !!s.settings.smoothie && ['avocado','blueberry','milk','honey'].every(k=>num(s.settings.smoothie[k])) && Array.isArray(s.foods)&&s.foods.every(food) && !!s.plans&&typeof s.plans==='object'&&Object.entries(s.plans).every(([date,p])=>validDate(date)&&Array.isArray(p)&&p.every(food)) && !!s.days&&typeof s.days==='object'&&Object.entries(s.days).every(([date,d])=>validDate(date)&&d&&num(d.water)&&typeof d.sleep==='string'&&Array.isArray(d.meals)&&d.meals.every(m=>food(m)&&num(m.amount)&&typeof m.meal==='string')&&typeof d.breakfast==='string'&&Array.isArray(d.supplements)&&d.supplements.every(x=>typeof x==='string')&&typeof d.exercise==='string'&&num(d.minutes)&&typeof d.intensity==='string'&&typeof d.bodyPart==='string'&&(d.morning===undefined||num(d.morning))&&(d.bedtimeWeight===undefined||num(d.bedtimeWeight))&&(d.burned===undefined||num(d.burned))&&(d.workouts===undefined||validWorkouts(d.workouts)));
+}
+
+export function validDate(value:string) { return typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&!Number.isNaN(Date.parse(value+'T12:00:00Z'))&&new Date(value+'T12:00:00Z').toISOString().slice(0,10)===value; }
+export function validWorkouts(value:unknown): value is Workout[] { return Array.isArray(value)&&value.length<=100&&value.every(w=>w&&typeof w.name==='string'&&w.name.trim()&&typeof w.bodyPart==='string'&&Array.isArray(w.sets)&&w.sets.length<=100&&w.sets.every(s=>s&&typeof s.done==='boolean'&&[s.kg,s.reps].every(n=>n===null||typeof n==='number'&&Number.isFinite(n)&&n>=0&&n<=2000))); }
+export function foodKey(f:Food) { return f.name.trim().toLowerCase()+'|'+f.portion.trim().toLowerCase(); }
+export function frequentFoods(state:State,date:string,days=30) {
+ const map=new Map<string,{food:Food;dates:Set<string>;count:number;latest:string}>();
+ for(const [d,day] of Object.entries(state.days).sort(([a],[b])=>a.localeCompare(b))) {if(d>date||d<offsetDate(date,1-days))continue;for(const food of day.meals){const key=foodKey(food);const r=map.get(key)??{food,dates:new Set(),count:0,latest:d};r.food=food;r.dates.add(d);r.count++;r.latest=d;map.set(key,r);}}
+ return [...map.entries()].map(([key,r])=>({...r,food:state.foods.find(f=>foodKey(f)===key)??r.food,days:r.dates.size})).filter(r=>!r.food.hidden).sort((a,b)=>b.days-a.days||b.latest.localeCompare(a.latest)||b.count-a.count);
+}
+export function goalProgress(state:State,date:string) {
+ const goal=state.settings.goal;if(!goal||goal.startWeight<=0||goal.targetWeight<=0)return null;
+ const get=(from:string,to:string)=>Object.entries(state.days).filter(([d,r])=>d>=from&&d<=to&&d>=goal.startDate&&r.morning!==undefined).map(([,r])=>r.morning!);
+ const current=get(offsetDate(date,-6),date),previous=get(offsetDate(date,-13),offsetDate(date,-7));
+ const avg=(a:number[])=>a.reduce((s,n)=>s+n,0)/a.length;
+ const mean=current.length?avg(current):null;
+ const span=goal.startWeight-goal.targetWeight, direction=Math.sign(span);
+ const progress=mean===null?null:span===0?100:Math.min(100,Math.max(0,(goal.startWeight-mean)/span*100));
+ const rate=current.length>=3&&previous.length>=3?(avg(previous)-avg(current))*direction:null;
+ const remaining=mean===null?null:Math.max(0,(mean-goal.targetWeight)*direction);
+ const weeks=remaining!==null&&remaining>0&&rate!==null&&rate>.01?remaining/rate:null;
+ return {goal,mean,progress,rate,weeks,currentDays:current.length,previousDays:previous.length,remaining};
+}
+export function workoutVolume(workouts:Workout[]) { return workouts.reduce((n,w)=>n+w.sets.filter(s=>s.done&&s.kg!==null&&s.reps!==null).reduce((v,s)=>v+s.kg!*s.reps!,0),0); }
