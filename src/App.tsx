@@ -368,7 +368,7 @@ function ProgTopBar({prog,onChange}:{prog:number;onChange:(v:number)=>void}) {
     window.addEventListener("mouseup",up);
   };
   return (
-    <div title={prog>0?`${prog}%`:"드래그해서 진행률 설정"} draggable={false}
+    <div data-prog="1" title={prog>0?`${prog}%`:"드래그해서 진행률 설정"} draggable={false}
       onMouseDown={down} onClick={e=>e.stopPropagation()}
       style={{position:"absolute",top:0,left:0,right:0,height:5,background:"#e4e4e7",cursor:"col-resize",zIndex:2}}>
       {prog>0&&<div style={{position:"absolute",top:0,left:0,height:"100%",width:`${prog}%`,background:color,transition:"width .15s"}}/>}
@@ -811,22 +811,61 @@ type Item = { card:Card; boardId:string };
 const itemKey = (i:Item) => `${i.boardId}:${i.card.id}`;
 const STATUS_RANK:Record<string,number> = { todo:0, inprogress:1, done:2 };
 
-function CardTile({it,selected,onSelect,onOpen,onProgressChange}:{
+function CardTile({it,selected,onSelect,onOpen,onProgressChange,onDelete}:{
   it:Item; selected:boolean; onSelect:(k:string)=>void;
   onOpen:(i:Item)=>void; onProgressChange:(cardId:string,boardId:string,v:number)=>void;
+  onDelete?:(i:Item)=>void;
 }) {
   const {card,boardId}=it;
   const k=itemKey(it);
   const done=isDoneCard(card);
   const prog=card.progress??0;
+  // 모바일: 카드를 왼쪽으로 밀어서 삭제
+  const [dx,setDx]=useState(0);
+  const [gone,setGone]=useState(false);
+  const sw=useRef<{x:number;y:number;mode:""|"h"|"v";w:number}|null>(null);
+  const swiped=useRef(false);
+  const THRESH=0.38;
+  const onTS=(e:React.TouchEvent)=>{
+    if((e.target as HTMLElement).closest("[data-prog]")) return; // 진행률 막대 조작과 충돌 방지
+    const t=e.touches[0]; sw.current={x:t.clientX,y:t.clientY,mode:"",w:(e.currentTarget as HTMLElement).offsetWidth};
+  };
+  const onTM=(e:React.TouchEvent)=>{
+    const s0=sw.current; if(!s0) return;
+    const t=e.touches[0], mx=t.clientX-s0.x, my=t.clientY-s0.y;
+    if(!s0.mode){
+      if(Math.abs(mx)<8&&Math.abs(my)<8) return;
+      s0.mode=Math.abs(mx)>Math.abs(my)*1.4&&mx<0?"h":"v";
+    }
+    if(s0.mode==="h"){ swiped.current=true; setDx(Math.max(mx,-s0.w)); }
+  };
+  const onTE=()=>{
+    const s0=sw.current; sw.current=null;
+    if(!s0||s0.mode!=="h"){ return; }
+    if(-dx>s0.w*THRESH&&onDelete){ setGone(true); setDx(-s0.w); setTimeout(()=>onDelete(it),160); }
+    else setDx(0);
+    setTimeout(()=>{swiped.current=false;},350);
+  };
+  const swiping=dx!==0;
   return (
+    <div data-swipe-wrap="1" style={{position:"relative",borderRadius:8,
+      height:gone?0:undefined,opacity:gone?0:1,transition:gone?"opacity .16s":undefined}}>
+      {swiping&&(
+        <div style={{position:"absolute",inset:"0 0 5px 0",borderRadius:8,background:"#dc2626",
+          display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:16,
+          color:"#fff",fontSize:12,fontWeight:700,opacity:Math.min(1,-dx/60)}}>
+          {-dx>(sw.current?.w||300)*THRESH?"놓으면 삭제":"← 삭제"}
+        </div>
+      )}
     <div data-key={k} data-card="1" tabIndex={-1}
+      onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE} onTouchCancel={()=>{sw.current=null;setDx(0);}}
       className={`kcard${selected?" selected":""}`}
       draggable
       onDragStart={e=>{gDrag={cardId:card.id,boardId,card};e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",card.id);}}
       onDragEnd={()=>{gDrag={cardId:null,boardId:null,card:null};}}
-      onClick={()=>{onSelect(k);onOpen(it);}}
-      style={{position:"relative",overflow:"hidden",opacity:done?.62:1}}>
+      onClick={()=>{ if(swiped.current) return; onSelect(k);onOpen(it);}}
+      style={{position:"relative",overflow:"hidden",opacity:done?.62:1,touchAction:"pan-y",
+        transform:dx?`translateX(${dx}px)`:undefined,transition:sw.current?"none":"transform .18s"}}>
       <ProgTopBar prog={prog} onChange={v=>onProgressChange(card.id,boardId,v)}/>
       <div style={{marginTop:3}}><CardHead card={card} boardId={boardId}/></div>
       <div style={{marginTop:4,fontSize:13,color:"#111",lineHeight:1.4,wordBreak:"break-word",fontWeight:500,
@@ -837,6 +876,7 @@ function CardTile({it,selected,onSelect,onOpen,onProgressChange}:{
           {prog>0&&<span style={{marginLeft:"auto",fontSize:10,color:"#71717a",fontWeight:700}}>{prog}%</span>}
         </div>
       )}
+    </div>
     </div>
   );
 }
@@ -910,11 +950,11 @@ const SECTIONS = [
   { id:"done",       cls:"done", ko:"DONE",  sub:"완료"      },
 ] as const;
 
-function KanbanView({items,selectedKey,onSelect,onOpen,onProgressChange,onMove,onAdd,isMobile,
+function KanbanView({items,selectedKey,onSelect,onOpen,onProgressChange,onMove,onAdd,isMobile,onCardDelete,
   quickStatus,quickLabel,onQuickAdd,onQuickClose}:{
   items:Item[]; selectedKey:string|null; onSelect:(k:string)=>void;
   onOpen:(i:Item)=>void; onProgressChange:(cardId:string,boardId:string,v:number)=>void;
-  onMove:(status:string)=>void; onAdd:(status:string)=>void; isMobile:boolean;
+  onMove:(status:string)=>void; onAdd:(status:string)=>void; isMobile:boolean; onCardDelete:(i:Item)=>void;
   quickStatus:string|null; quickLabel:string; onQuickAdd:(status:string,text:string)=>void; onQuickClose:()=>void;
 }) {
   const [over,setOver]=useState<string|null>(null);
@@ -943,7 +983,8 @@ function KanbanView({items,selectedKey,onSelect,onOpen,onProgressChange,onMove,o
             )}
             {list.map(it=>(
               <CardTile key={itemKey(it)} it={it} selected={selectedKey===itemKey(it)}
-                onSelect={onSelect} onOpen={onOpen} onProgressChange={onProgressChange}/>
+                onSelect={onSelect} onOpen={onOpen} onProgressChange={onProgressChange}
+                onDelete={isMobile?onCardDelete:undefined}/>
             ))}
             {!list.length&&(
               <div style={{textAlign:"center",color:"#a1a1aa",fontSize:11.5,padding:"18px 0"}}>
@@ -1016,7 +1057,16 @@ const SHORTCUTS:[string[],string][] = [
   [["1","2","3","4"],"전체 / 회사 / Biz / 개인 보기"],
   [["?"],"이 도움말 열기·닫기"],
 ];
+const MOBILE_GUIDE:[string,string][] = [
+  ["+ 버튼","빠른 추가 — 입력 후 Enter(완료 키)를 계속 누르면 연속 입력"],
+  ["날짜·요일","10/28 · 수요일 · 내일 처럼 쓰면 마감일이 자동 입력돼요"],
+  ["구분","(회사) (Biz) (개인) 을 붙이면 그 탭에 저장돼요"],
+  ["좌우로 밀기","빈 곳을 좌우로 밀면 칸반 ↔ 만다라트 ↔ 플래닝 ↔ 식단·운동"],
+  ["카드 ← 밀기","카드를 왼쪽으로 끝까지 밀면 삭제 (아래 '되돌리기'로 복구)"],
+  ["카드 탭","카드를 눌러 편집 · 바깥을 누르면 자동 저장"],
+];
 function HelpOverlay({onClose}:{onClose:()=>void}) {
+  const isTouch=typeof window!=="undefined"&&(window.matchMedia?.("(pointer: coarse)").matches||window.innerWidth<700);
   return (
     <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:500,background:"rgba(24,24,27,.35)",
       backdropFilter:"blur(3px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
@@ -1026,6 +1076,16 @@ function HelpOverlay({onClose}:{onClose:()=>void}) {
           <span style={{fontWeight:700,fontSize:14}}>키보드 단축키</span>
           <button onClick={onClose} style={{fontSize:18,color:"#71717a"}}>×</button>
         </div>
+        {MOBILE_GUIDE.length>0&&isTouch&&(
+          <div style={{marginBottom:12,paddingBottom:10,borderBottom:"1px solid #e4e4e7"}}>
+            <div style={{fontWeight:700,fontSize:12.5,marginBottom:6}}>모바일 사용법</div>
+            {MOBILE_GUIDE.map(([k,d])=>(
+              <div key={k} style={{display:"flex",gap:10,padding:"4px 0",fontSize:12,color:"#3f3f46"}}>
+                <span style={{width:92,flexShrink:0,fontWeight:600,color:"#18181b"}}>{k}</span><span>{d}</span>
+              </div>
+            ))}
+          </div>
+        )}
         {SHORTCUTS.map(([keys,desc],i)=>(
           <div key={i} style={{display:"flex",gap:12,padding:"6px 0",borderTop:i?"1px solid #f0f0f2":"none",alignItems:"center"}}>
             <div style={{width:118,flexShrink:0,display:"flex",gap:3,flexWrap:"wrap"}}>
@@ -1456,6 +1516,32 @@ export default function App() {
   };
 
   const goKanban=(f:CatFilter)=>{ setView("kanban"); setCatFilter(f); };
+
+  // 모바일: 좌우로 밀어서 칸반 ↔ 만다라트 ↔ 플래닝 ↔ 식단·운동 전환
+  const VIEW_ORDER:ViewId[]=["kanban","mandala","planning","nutrition"];
+  const swipeStart=useRef<{x:number;y:number;ok:boolean}|null>(null);
+  const viewSwipe={
+    onTouchStart:(e:React.TouchEvent)=>{
+      const el=e.target as HTMLElement;
+      let ok=!el.closest("[data-card],input,textarea,select,[data-noswipe],[data-prog]");
+      // 가로로 스크롤되는 영역 안에서 시작한 제스처는 화면 전환에서 제외
+      for(let n:HTMLElement|null=el;ok&&n&&n!==e.currentTarget;n=n.parentElement){
+        if(n.scrollWidth>n.clientWidth+4&&/(auto|scroll)/.test(getComputedStyle(n).overflowX)) ok=false;
+      }
+      const t=e.touches[0]; swipeStart.current={x:t.clientX,y:t.clientY,ok};
+    },
+    onTouchEnd:(e:React.TouchEvent)=>{
+      const s0=swipeStart.current; swipeStart.current=null;
+      if(!s0||!s0.ok) return;
+      const t=e.changedTouches[0], mx=t.clientX-s0.x, my=t.clientY-s0.y;
+      if(Math.abs(mx)<70||Math.abs(mx)<Math.abs(my)*1.6) return;
+      const i=VIEW_ORDER.indexOf(view);
+      const n=mx<0?i+1:i-1;
+      if(n<0||n>=VIEW_ORDER.length) return;
+      setQuickStatus(null); setView(VIEW_ORDER[n]);
+      window.scrollTo({top:0});
+    },
+  };
   const toggleKanbanNav=()=>{
     setKanbanOpen(o=>{ const n=!o; localStorage.setItem("kanban_nav_open",JSON.stringify(n)); return n; });
   };
@@ -1612,7 +1698,7 @@ export default function App() {
             {isMobile&&(
               <div style={{display:"inline-flex",alignSelf:"flex-start",background:"#fff",border:"1px solid #18181b",borderRadius:999,padding:2}}>
                 {([["kanban","칸반"],["mandala","만다라트"],["planning","플래닝"],["nutrition","식단·운동"]] as const).map(([id,ko])=>(
-                  <button key={id} onClick={()=>setView(id)} className={view===id?"btn-dark":""}
+                  <button key={id} onClick={()=>{ setView(id); if(id==="kanban") setQuickStatus(null); }} className={view===id?"btn-dark":""}
                     style={{padding:"4px 14px",borderRadius:999,fontSize:11.5,fontWeight:600,color:view===id?"#fff":"#52525b"}}>{ko}</button>
                 ))}
               </div>
@@ -1644,7 +1730,13 @@ export default function App() {
             )}
           </div>
 
-          <div style={{flex:1,padding:isMobile?"2px 8px 70px":"4px 18px 56px"}}>
+          <div style={{flex:1,padding:isMobile?"2px 8px 70px":"4px 18px 56px"}}
+            {...(isMobile?viewSwipe:{})}>
+            {isMobile&&view==="kanban"&&(
+              <div style={{fontSize:10.5,color:"#a1a1aa",padding:"0 2px 8px",lineHeight:1.5}}>
+                ← → 화면을 밀면 칸반·만다라트·플래닝·식단 이동 · 카드를 왼쪽으로 밀면 삭제 · + 로 빠른 추가
+              </div>
+            )}
             {view==="nutrition" ? <NutritionDashboard/> : loading
               ? <div style={{textAlign:"center",color:"var(--text-light)",paddingTop:60,fontSize:13}}>불러오는 중…</div>
               : view==="kanban"
@@ -1652,6 +1744,7 @@ export default function App() {
                   onOpen={it=>openCard(it.card,it.boardId)}
                   onProgressChange={handleProgressChange}
                   onMove={handleMove} onAdd={s=>openQuick(s)} isMobile={isMobile}
+                  onCardDelete={it=>deleteCard(it.card.id,it.boardId)}
                   quickStatus={quickStatus}
                   quickLabel={`${CAT_FILTERS.find(f=>f.id===catFilter)?.ko==="전체"?"회사":CAT_FILTERS.find(f=>f.id===catFilter)?.ko}에 추가`}
                   onQuickAdd={handleQuickAdd} onQuickClose={()=>setQuickStatus(null)}/>

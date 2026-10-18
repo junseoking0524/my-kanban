@@ -1,2 +1,3 @@
 /* 앱 스타일은 App.tsx 내부 STYLE에서 관리 — 템플릿 기본 스타일 제거 */
 #root { width:100%; margin:0; text-align:left; min-height:100svh; }
+html, body { overscroll-behavior-x: none; }
