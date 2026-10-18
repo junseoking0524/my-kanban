@@ -9,8 +9,10 @@ export default async function handler(req,res) {
   res.setHeader('Cache-Control','private, no-store');
   res.setHeader('Vary','Cookie');
   const secret=process.env.DIET_ACCESS_PASSWORD;
-  if (!secret || secret.length<24 || !process.env.SHEET_ID || !process.env.GOOGLE_CLIENT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY)
-    return res.status(503).json({error:'동기화 서버 설정이 필요합니다. DIET_ACCESS_PASSWORD는 24자 이상이어야 합니다.'});
+  if (!secret) return res.status(503).json({error:'배포 환경에 DIET_ACCESS_PASSWORD가 없습니다. 환경변수 적용 후 재배포해주세요.'});
+  if (secret.length<24) return res.status(503).json({error:'DIET_ACCESS_PASSWORD의 Value가 24자 미만입니다. 앱 전용 암호를 24자 이상으로 설정한 뒤 재배포해주세요.'});
+  const missing=['SHEET_ID','GOOGLE_CLIENT_EMAIL','GOOGLE_PRIVATE_KEY'].filter(k=>!process.env[k]);
+  if (missing.length) return res.status(503).json({error:'배포 환경에 Google Sheets 설정이 없습니다: '+missing.join(', ')});
   if (!['GET','POST'].includes(req.method)) return res.status(405).json({error:'Method not allowed'});
   if(req.method==='POST') {
     const expected='https://'+req.headers.host;
