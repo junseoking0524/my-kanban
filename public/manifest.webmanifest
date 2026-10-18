@@ -1,1 +1,1 @@
-{"name":"Austin · 식단과 움직임","short_name":"Daily Balance","start_url":"/?view=nutrition","scope":"/","display":"standalone","background_color":"#eceef1","theme_color":"#305d48","lang":"ko","icons":[{"src":"/favicon.svg","sizes":"any","type":"image/svg+xml"}]}
+{"name": "식단·운동 입력 관리", "short_name": "Daily Balance", "start_url": "/nutrition.html", "scope": "/", "display": "standalone", "background_color": "#eceef1", "theme_color": "#305d48", "lang": "ko", "icons": [{"src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml"}]}

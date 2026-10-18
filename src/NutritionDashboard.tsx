@@ -1,0 +1,25 @@
+import { useEffect, useState } from 'react';
+import { initial, emptyDay, today, offsetDate, totals, validateState } from './nutrition-data';
+import type { State } from './nutrition-data';
+import './nutrition.css';
+const KEY='austin-nutrition-v1';
+export default function NutritionDashboard() {
+ const [state,setState]=useState<State>(initial),[error,setError]=useState('');
+ useEffect(()=>{const refresh=()=>{try{const raw=localStorage.getItem(KEY);if(!raw){setState(initial());setError('');return;}const value=JSON.parse(raw);if(!validateState(value))throw Error();setState(value);setError('');}catch{setError('기록을 읽지 못했습니다. 입력·관리 페이지에서 백업을 확인해주세요.');}};refresh();const storage=(e:StorageEvent)=>{if(e.key===KEY||e.key===null)refresh();};window.addEventListener('storage',storage);window.addEventListener('focus',refresh);document.addEventListener('visibilitychange',refresh);return()=>{window.removeEventListener('storage',storage);window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);};},[]);
+ const date=today(), day=state.days[date]??emptyDay(),sum=totals(day),settings=state.settings;
+ const week=Object.entries(state.days).filter(([d])=>d>=offsetDate(date,-6)&&d<=date).sort(([a],[b])=>a.localeCompare(b));
+ const weights=week.map(([,d])=>d.morning).filter((n):n is number=>n!==undefined);
+ const average=weights.length?weights.reduce((a,b)=>a+b,0)/weights.length:null;
+ const all=Object.entries(state.days).sort(([a],[b])=>b.localeCompare(a));
+ const meals=Object.entries(state.plans).filter(([d])=>d>=date).sort(([a],[b])=>a.localeCompare(b)).slice(0,5);
+ return <div className="nt"><header className="nt-heading"><div><span className="nt-eyebrow">BALANCE OVERVIEW</span><h1>식단 대시보드</h1><p>근육 증가 · 체중 감량 | {date}</p></div><a className="nt-link-primary" href="/nutrition.html" target="_blank" rel="noopener noreferrer">입력·관리 열기 ↗</a></header>
+ <p className="nt-status" role="status">{error||'요약 전용 화면 · 입력·관리 페이지의 기록을 읽어 표시합니다.'}</p>
+ <div className="nt-stats">{[['오늘 섭취 열량',Math.round(sum.kcal),'kcal',settings.calories],['오늘 단백질',sum.protein.toFixed(1),'g',settings.protein],['오늘 물',day.water,'ml',settings.water],['오늘 공복 체중',day.morning??'—','kg',0]].map(([label,value,unit,target])=><div key={String(label)}><span>{label}</span><strong>{value}<small>{unit}</small></strong><p>{target?`설정 목표 ${target}${unit}`:'목표 미설정'}</p></div>)}</div>
+ <p className="nt-note">영양값은 추정치입니다. {sum.unknown?`오늘 ${sum.unknown}개 항목의 영양값이 미확인이라 합계가 불완전합니다.`:'음식을 등록하지 않은 날의 합계 0은 미기록일 수 있습니다.'}</p>
+ <div className="nt-grid"><section className="nt-card"><h3>이번 주 흐름</h3><div className="nt-summary-row"><span>7일 공복 평균</span><b>{average===null?'—':average.toFixed(1)}kg · {weights.length}일 기록</b></div><div className="nt-summary-row"><span>근력운동</span><b>{week.filter(([,d])=>d.exercise==='근력'&&d.minutes>0).length}일</b></div><div className="nt-summary-row"><span>총 운동 시간</span><b>{week.reduce((n,[,d])=>n+(d.exercise!=='휴식'&&d.exercise!=='미기록'?d.minutes:0),0)}분</b></div><div className="nt-summary-row"><span>식사 기록</span><b>{week.filter(([,d])=>d.meals.length>0).length}일 / 7일</b></div><p className="nt-note">미기록 체중은 평균에서 제외합니다. 운동 소모량은 섭취 열량에서 빼지 않습니다.</p></section><section className="nt-card"><h3>오늘의 생활</h3><div className="nt-summary-row"><span>아침</span><b>{day.breakfast}</b></div><div className="nt-summary-row"><span>운동</span><b>{day.exercise}{day.minutes>0?` · ${day.minutes}분 · ${day.bodyPart}`:''}</b></div><div className="nt-summary-row"><span>취침 시각</span><b>{day.sleep||'미기록'}</b></div><div className="nt-summary-row"><span>보충제</span><b>{day.supplements.length?day.supplements.join(' · '):'미기록'}</b></div></section></div>
+ <section className="nt-card" style={{marginTop:16}}><h3>오늘 먹은 것</h3>{day.meals.length?day.meals.map(m=><div className="nt-summary-row" key={m.id}><span>{m.meal} · {m.name} ×{m.amount}</span><b>{m.kcal===null?'열량 미확인':`${Math.round(m.kcal*m.amount)} kcal`} · {m.protein===null?'단백질 미확인':`${(m.protein*m.amount).toFixed(1)}g`}</b></div>):<p className="nt-note">아직 식사 기록이 없습니다. 입력·관리 페이지에서 추가해주세요.</p>}</section>
+ <section className="nt-card"><h3>최근 기록</h3><div className="nt-table"><table><thead><tr>{['날짜','공복 kg','섭취 kcal*','단백질 g*','물 ml','운동'].map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{all.slice(0,14).map(([d,r])=>{const t=totals(r);return <tr key={d}><td>{d}</td><td>{r.morning??'—'}</td><td>{Math.round(t.kcal)}{t.unknown?' + 미확인':''}</td><td>{t.protein.toFixed(1)}{t.unknown?' + 미확인':''}</td><td>{r.water}</td><td>{r.exercise}</td></tr>})}</tbody></table></div>{!all.length&&<p className="nt-note">기록을 시작하면 최근 14개 기록이 표시됩니다.</p>}<p className="nt-note">* 영양값이 확인된 음식만 합산한 추정치</p></section>
+ <section className="nt-card"><h3>예정된 회사 점심</h3>{meals.length?meals.map(([d,foods])=><div className="nt-summary-row" key={d}><span>{d}</span><b>{foods.map(f=>f.name).join(' · ')}</b></div>):<p className="nt-note">등록된 식단표가 없습니다.</p>}</section>
+ <p className="nt-note">같은 브라우저·같은 사이트 주소의 입력 페이지와 데이터를 공유합니다. 다른 기기나 Safari 홈 화면 앱의 저장공간이 분리된 경우 자동으로 동기화되지 않습니다. 입력 페이지에서 JSON 백업으로 옮길 수 있습니다.</p>
+ </div>;
+}

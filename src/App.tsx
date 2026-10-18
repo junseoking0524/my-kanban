@@ -1,4 +1,4 @@
-import NutritionView from "./NutritionView";
+import NutritionDashboard from "./NutritionDashboard";
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -1549,7 +1549,7 @@ export default function App() {
           </div>
 
           <div style={{flex:1,padding:isMobile?"2px 8px 70px":"4px 18px 56px"}}>
-            {view==="nutrition" ? <NutritionView/> : loading
+            {view==="nutrition" ? <NutritionDashboard/> : loading
               ? <div style={{textAlign:"center",color:"var(--text-light)",paddingTop:60,fontSize:13}}>불러오는 중…</div>
               : view==="kanban"
               ? <KanbanView items={items} selectedKey={selectedKey} onSelect={setSelectedKey}

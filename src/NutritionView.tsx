@@ -33,7 +33,7 @@ export default function NutritionView() {
  const proteinGap=settings.protein?Math.max(0,settings.protein-t.protein):null;
  function dinnerFoods() {const riceAmount=remaining!==null&&remaining<500?.5:1;return [{...presets[1],amount:1},{...presets[0],amount:riceAmount},{...presets[5],amount:1}];}
  return <div className="nt">
-  <header className="nt-heading"><div><span className="nt-eyebrow">DAILY BALANCE</span><h1>식단과 움직임</h1><p>근육은 차곡차곡, 체중은 천천히. 남편의 일일 기록</p></div><label className="nt-date">기록 날짜<input type="date" value={date} onChange={e=>e.target.value&&setDate(e.target.value)}/></label></header>
+  <header className="nt-heading"><div><span className="nt-eyebrow">DAILY BALANCE</span><h1>식단·운동 기록실</h1><p>근육은 차곡차곡, 체중은 천천히. 남편의 일일 기록</p></div><label className="nt-date">기록 날짜<input type="date" value={date} onChange={e=>e.target.value&&setDate(e.target.value)}/></label></header>
   <nav className="nt-tabs" aria-label="식단 메뉴">{['오늘','식단표','추이','설정·백업'].map(x=><button key={x} aria-pressed={tab===x} className={tab===x?'active':''} onClick={()=>setTab(x)}>{x}</button>)}</nav>
   <p className="nt-status" role="status">{message||'이 기기에 자동 저장 · CSV/JSON 백업 지원'}</p>
   {locked&&<p className="nt-alert">설정·백업에서 JSON을 복원해주세요. 기존 저장값은 보존되어 있습니다.</p>}
