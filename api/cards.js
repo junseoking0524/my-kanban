@@ -40,16 +40,60 @@ async function ensureGrid(sheets, sheetName) {
   const tab = meta.data.sheets.find(s => s.properties.title === sheetName);
   if (!tab) throw new Error(`'${sheetName}' 탭을 시트에서 찾을 수 없어요`);
   const have = tab.properties.gridProperties?.columnCount || 0;
-  if (have < 11) {
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId: SHEET_ID,
-      requestBody: { requests: [{ appendDimension: { sheetId: tab.properties.sheetId, dimension: 'COLUMNS', length: 11 - have } }] },
-    });
+  const haveRows = tab.properties.gridProperties?.rowCount || 0;
+  const requests = [];
+  if (have < 11) requests.push({ appendDimension: { sheetId: tab.properties.sheetId, dimension: 'COLUMNS', length: 11 - have } });
+  if (haveRows < 2000) requests.push({ appendDimension: { sheetId: tab.properties.sheetId, dimension: 'ROWS', length: 2000 - haveRows } });
+  if (requests.length) {
+    await sheets.spreadsheets.batchUpdate({ spreadsheetId: SHEET_ID, requestBody: { requests } });
   }
   gridChecked.add(sheetName);
 }
 
 let headerChecked = false;
+
+const STATUS_IDS = new Set(['todo', 'inprogress', 'done', 'check', 'carry', 'memo']);
+
+// 예전 append 버그로 오른쪽으로 밀려 저장된 행을 읽을 때 앞쪽 빈 칸을 걷어낸다.
+// id가 없는 행(첫 값이 상태값)은 주소를 알 수 없으므로 빈 행처럼 건너뛴다.
+function normalizeRow(r) {
+  if (!r) return [];
+  let k = 0;
+  while (k < r.length && String(r[k] ?? '').trim() === '') k++;
+  if (k === r.length) return [];
+  const t = k > 0 ? r.slice(k) : r;
+  if (STATUS_IDS.has(String(t[0]).trim())) return [];
+  return t;
+}
+
+const isBlankRow = r => !r || r.every(v => String(v ?? '').trim() === '');
+
+// values.append는 표 위치를 추측해서 열이 밀려 저장될 수 있어, 빈 행을 직접 찾아 A열부터 쓴다.
+// 쓴 뒤에 id를 다시 읽어 확인하고, 다른 기기와 겹쳤으면 다음 빈 행으로 재시도한다.
+async function insertRow(sheets, sheetName, row) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const resp = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${sheetName}!A2:${LAST_COL}2000`,
+    });
+    const raw = resp.data.values || [];
+    let idx = raw.findIndex(isBlankRow);
+    if (idx === -1) idx = raw.length;
+    const rowNum = idx + 2;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: `${sheetName}!A${rowNum}:${LAST_COL}${rowNum}`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [row] },
+    });
+    const chk = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${sheetName}!A${rowNum}`,
+    });
+    if (String(chk.data.values?.[0]?.[0] ?? '') === String(row[0])) return rowNum;
+  }
+  throw new Error('시트에 저장하지 못했어요 (동시 저장 충돌). 잠시 후 다시 시도해 주세요');
+}
 
 function rowToCard(r) {
   let tags = [];
@@ -138,9 +182,9 @@ export default async function handler(req, res) {
   const readRows = async () => {
     const resp = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: `${sheetName}!A2:${LAST_COL}1000`,
+      range: `${sheetName}!A2:${LAST_COL}2000`,
     });
-    return resp.data.values || [];
+    return (resp.data.values || []).map(normalizeRow);
   };
 
   try {
@@ -169,14 +213,7 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const c = { ...req.body, id: req.body.id || newId() };
       const calEventId = await insertEvent(calendar, c);
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: SHEET_ID,
-        range: `${sheetName}!A:${LAST_COL}`,
-        valueInputOption: 'RAW',
-        // 동시에 추가돼도 같은 행을 덮어쓰지 않도록 새 행을 끼워 넣는 방식으로 추가
-        insertDataOption: 'INSERT_ROWS',
-        requestBody: { values: [cardToRow(c, calEventId)] },
-      });
+      await insertRow(sheets, sheetName, cardToRow(c, calEventId));
       return res.status(200).json({ ok: true, card: { ...c, calEventId } });
     }
 

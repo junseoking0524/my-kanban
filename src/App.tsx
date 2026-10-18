@@ -832,16 +832,51 @@ function CardTile({it,selected,onSelect,onOpen,onProgressChange}:{
   );
 }
 
+// '+' 빠른 입력: 패널 없이 컬럼 위에서 바로 입력 → Enter로 계속 추가, Esc로 종료
+function parseQuick(raw:string){
+  let title=raw.trim(), dueDate="";
+  const m=title.match(/^(\d{1,2})\/(\d{1,2})(?:\s+(\d{1,2}:\d{2}))?\s+(.+)$/); // "10/20 제목" 또는 "10/20 14:00 제목"
+  if(m){ dueDate=displayToDueDate(`${m[1]}/${m[2]}${m[3]?" "+m[3]:""}`); title=m[4].trim(); }
+  return {title,dueDate};
+}
+function QuickBar({label,onAdd,onClose,isMobile}:{label:string;onAdd:(text:string)=>void;onClose:()=>void;isMobile:boolean}) {
+  const [val,setVal]=useState("");
+  const ref=useRef<HTMLInputElement>(null);
+  useEffect(()=>{ref.current?.focus();},[]);
+  return (
+    <div style={{marginBottom:6}}>
+      <input ref={ref} value={val} onChange={e=>setVal(e.target.value)}
+        placeholder={`${label} · 입력 후 Enter`}
+        onKeyDown={e=>{
+          if(e.key==="Enter"&&!e.nativeEvent.isComposing){
+            e.preventDefault();
+            if(e.repeat) return;
+            const t=val.trim();
+            if(t){ onAdd(t); setVal(""); }
+          } else if(e.key==="Escape"){ e.preventDefault(); e.stopPropagation(); onClose(); }
+        }}
+        onBlur={()=>{ if(!val.trim()) onClose(); }}
+        style={{width:"100%",border:"1px dashed #8d929b",borderRadius:8,padding:"7px 10px",background:"#fff",
+          fontSize:isMobile?16:13,color:"#18181b",outline:"none",fontFamily:"inherit"}}/>
+      <div style={{fontSize:10,color:"#a1a1aa",margin:"3px 2px 0"}}>
+        Enter 계속 추가 · Esc 닫기 · <span style={{color:"#71717a"}}>10/20 제목</span> 으로 마감일 지정
+      </div>
+    </div>
+  );
+}
+
 const SECTIONS = [
   { id:"todo",       cls:"todo", ko:"TO-DO", sub:"해야 할 일" },
   { id:"inprogress", cls:"wip",  ko:"WIP",   sub:"진행 중"   },
   { id:"done",       cls:"done", ko:"DONE",  sub:"완료"      },
 ] as const;
 
-function KanbanView({items,selectedKey,onSelect,onOpen,onProgressChange,onMove,onAdd,isMobile}:{
+function KanbanView({items,selectedKey,onSelect,onOpen,onProgressChange,onMove,onAdd,isMobile,
+  quickStatus,quickLabel,onQuickAdd,onQuickClose}:{
   items:Item[]; selectedKey:string|null; onSelect:(k:string)=>void;
   onOpen:(i:Item)=>void; onProgressChange:(cardId:string,boardId:string,v:number)=>void;
   onMove:(status:string)=>void; onAdd:(status:string)=>void; isMobile:boolean;
+  quickStatus:string|null; quickLabel:string; onQuickAdd:(status:string,text:string)=>void; onQuickClose:()=>void;
 }) {
   const [over,setOver]=useState<string|null>(null);
   return (
@@ -863,6 +898,10 @@ function KanbanView({items,selectedKey,onSelect,onOpen,onProgressChange,onMove,o
                 style={{width:22,height:22,borderRadius:7,fontSize:16,lineHeight:1,color:"inherit",
                   border:"1px solid currentColor",opacity:.75,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
             </div>
+            {quickStatus===sec.id&&(
+              <QuickBar label={quickLabel} isMobile={isMobile}
+                onAdd={t=>onQuickAdd(sec.id,t)} onClose={onQuickClose}/>
+            )}
             {list.map(it=>(
               <CardTile key={itemKey(it)} it={it} selected={selectedKey===itemKey(it)}
                 onSelect={onSelect} onOpen={onOpen} onProgressChange={onProgressChange}/>
@@ -925,7 +964,7 @@ function CleanupModal({cards,onClose,onDelete}:{
 // 단축키 도움말
 // ─────────────────────────────────────────────────────────────────────────────
 const SHORTCUTS:[string[],string][] = [
-  [["+"],"새 카드 추가 (패널 열림)"],
+  [["+"],"빠른 추가 — 입력 후 Enter를 계속 누르면 연속 입력, Esc로 종료"],
   [["Tab"],"다음 항목  ·  Shift+Tab 이전 항목"],
   [["←","→"],"구분 / 긴급도 / 라벨 선택"],
   [["Enter"],"다음 항목으로 · 제목에서는 등록하고 다음 카드 계속 입력"],
@@ -1126,6 +1165,7 @@ export default function App() {
   const [selectedKey,setSelectedKey] = useState<string|null>(null);
   const [showHelp,setShowHelp] = useState(false);
   const [showCleanup,setShowCleanup] = useState(false);
+  const [quickStatus,setQuickStatus] = useState<string|null>(null);
   const [dragging,setDragging] = useState(false);
   const [trashOver,setTrashOver] = useState(false);
   const [toast,setToast] = useState<{msg:string;undo?:()=>void}|null>(null);
@@ -1245,6 +1285,30 @@ export default function App() {
     openNew(status,category==="personal"?"personal":"work",{category,priority:"normal"});
   };
 
+  // 새 카드: 화면에 먼저 반영하고 저장은 뒤에서 순서대로. 실패하면 카드를 되돌리고 알림
+  const createCard=(card:Card,select=true)=>{
+    const colId=statusOf(card);
+    const target=card.category==="personal"?"personal":"work";
+    const id=newCardId();
+    const full={...card,id,colId};
+    setBoards(prev=>({...prev,[target]:[...prev[target],full]}));
+    if(select) setSelectedKey(`${target}:${id}`);
+    mutate(()=>apiFetch("POST",target,full)).catch(e=>{
+      setBoards(prev=>({...prev,[target]:prev[target].filter(c=>c.id!==id)}));
+      alert("저장 실패 — 카드가 취소됐어요: "+e);
+    });
+    return {target,colId};
+  };
+
+  // '+' 빠른 입력
+  const openQuick=(status="todo")=>{ setView("kanban"); setQuickStatus(status); };
+  const handleQuickAdd=(status:string,text:string)=>{
+    const {title,dueDate}=parseQuick(text);
+    if(!title) return;
+    const category=catFilter==="all"?"company":catFilter;
+    createCard({id:"",colId:status,title,dueDate,category,priority:"normal"},false);
+  };
+
   // 화면에 먼저 반영하고 저장은 뒤에서 순서대로 — Enter를 연달아 눌러도 빠르게 계속 입력 가능
   const handleSave=(card:Card,keepOpen=false)=>{
     const colId=statusOf(card);
@@ -1256,20 +1320,12 @@ export default function App() {
       mutate(()=>apiFetch("PUT",bid,full,card.id)).catch(e=>{alert("저장 실패: "+e);loadAll();});
       return;
     }
-    const target=card.category==="personal"?"personal":"work";
-    const id=newCardId();
-    const full={...card,id,colId};
-    setBoards(prev=>({...prev,[target]:[...prev[target],full]}));
-    setSelectedKey(`${target}:${id}`);
+    const {target}=createCard(card);
     if(keepOpen){
       // 연속 입력: 같은 구분/긴급도로 빈 입력창을 바로 다시 열기
       setEditCard({id:"",colId,title:"",category:card.category,priority:card.priority});
       setEditBoardId(target);
     } else setShowPanel(false);
-    mutate(()=>apiFetch("POST",target,full)).catch(e=>{
-      setBoards(prev=>({...prev,[target]:prev[target].filter(c=>c.id!==id)}));
-      alert("저장 실패 — 카드가 취소됐어요: "+e);
-    });
   };
 
   // 플래닝에서 입력한 줄 → TO-DO 카드
@@ -1367,7 +1423,7 @@ export default function App() {
   // ── 키보드 단축키 ──
   const kb=useRef<{[k:string]:any}>({});
   kb.current={showPanel,showHelp,showCleanup,view,orderedItems,selectedKey,toast,
-    openNewCard,deleteCard,openCard,setCatFilter,setView,setSelectedKey,setShowHelp,setShowPanel,setShowCleanup};
+    openNewCard,openQuick,deleteCard,openCard,setCatFilter,setView,setSelectedKey,setShowHelp,setShowPanel,setShowCleanup};
   useEffect(()=>{
     const h=(e:KeyboardEvent)=>{
       const k=kb.current;
@@ -1389,7 +1445,7 @@ export default function App() {
       const list:Item[]=k.orderedItems;
       const idx=list.findIndex(i=>itemKey(i)===k.selectedKey);
       switch(e.key){
-        case "+": case "=": e.preventDefault(); k.openNewCard(); return;
+        case "+": case "=": e.preventDefault(); k.openQuick(); return;
         case "?": e.preventDefault(); k.setShowHelp(true); return;
         case "Escape": k.setSelectedKey(null); return;
         case "1": k.setView("kanban"); k.setCatFilter("all"); return;
@@ -1397,7 +1453,7 @@ export default function App() {
         case "3": k.setView("kanban"); k.setCatFilter("biz"); return;
         case "4": k.setView("kanban"); k.setCatFilter("personal"); return;
       }
-      if(e.code==="NumpadAdd"){e.preventDefault();k.openNewCard();return;}
+      if(e.code==="NumpadAdd"){e.preventDefault();k.openQuick();return;}
       if(k.view!=="kanban"||!list.length) return;
       if(["ArrowDown","ArrowRight","j","J"].includes(e.key)){
         e.preventDefault(); k.setSelectedKey(itemKey(list[Math.min(list.length-1,idx+1)]));
@@ -1465,7 +1521,7 @@ export default function App() {
 
         <button onClick={()=>setShowHelp(true)} title="키보드 단축키 (?)" className="btn-light"
           style={{width:28,height:28,borderRadius:8,fontSize:13,fontWeight:700,flexShrink:0}}>?</button>
-        <button onClick={()=>openNewCard()} title="새 카드 추가 (+)" className="btn-dark"
+        <button onClick={()=>openQuick()} title="새 카드 추가 (+)" className="btn-dark"
           style={{width:28,height:28,borderRadius:8,fontSize:18,fontWeight:300,lineHeight:1,flexShrink:0,
             display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
       </div>
@@ -1555,7 +1611,10 @@ export default function App() {
               ? <KanbanView items={items} selectedKey={selectedKey} onSelect={setSelectedKey}
                   onOpen={it=>openCard(it.card,it.boardId)}
                   onProgressChange={handleProgressChange}
-                  onMove={handleMove} onAdd={s=>openNewCard(s)} isMobile={isMobile}/>
+                  onMove={handleMove} onAdd={s=>openQuick(s)} isMobile={isMobile}
+                  quickStatus={quickStatus}
+                  quickLabel={`${CAT_FILTERS.find(f=>f.id===catFilter)?.ko==="전체"?"회사":CAT_FILTERS.find(f=>f.id===catFilter)?.ko}에 추가`}
+                  onQuickAdd={handleQuickAdd} onQuickClose={()=>setQuickStatus(null)}/>
               : view==="mandala"
               ? <MandalaView/>
               : <PlanningView onAddTasks={addPlanTasks} isMobile={isMobile}/>
