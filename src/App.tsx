@@ -1,4 +1,5 @@
 import NutritionDashboard from "./NutritionDashboard";
+import JapaneseDashboard from "./JapaneseDashboard";
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -1244,7 +1245,7 @@ function PlanningView({onAddTasks,isMobile}:{
 // App
 // ─────────────────────────────────────────────────────────────────────────────
 type CatFilter = "all"|"company"|"biz"|"personal";
-type ViewId = "kanban"|"mandala"|"planning"|"nutrition";
+type ViewId = "kanban"|"mandala"|"planning"|"nutrition"|"japanese";
 const CAT_FILTERS:{id:CatFilter;ko:string}[] = [
   {id:"all",ko:"전체"},{id:"company",ko:"회사"},{id:"biz",ko:"Biz"},{id:"personal",ko:"개인"},
 ];
@@ -1259,7 +1260,7 @@ export default function App() {
   const [editBoardId,setEditBoardId] = useState("work");
   const [showPanel,setShowPanel] = useState(false);
   const [activeTagFilter,setActiveTagFilter] = useState<string|null>(null);
-  const [view,setView] = useState<ViewId>(new URLSearchParams(window.location.search).get("view")==="nutrition"?"nutrition":"kanban");
+  const [view,setView] = useState<ViewId>(()=>{const v=new URLSearchParams(window.location.search).get("view");return v==="nutrition"||v==="japanese"?v:"kanban";});
   const [catFilter,setCatFilter] = useState<CatFilter>("all");
   const [selectedKey,setSelectedKey] = useState<string|null>(null);
   const [showHelp,setShowHelp] = useState(false);
@@ -1541,8 +1542,8 @@ export default function App() {
     },
   };
 
-  // 모바일: 좌우로 밀어서 칸반 ↔ 만다라트 ↔ 플래닝 ↔ 식단·운동 전환
-  const VIEW_ORDER:ViewId[]=["kanban","mandala","planning","nutrition"];
+  // 모바일: 좌우로 밀어서 칸반 ↔ 만다라트 ↔ 플래닝 ↔ 식단·운동 ↔ 일본어 전환
+  const VIEW_ORDER:ViewId[]=["kanban","mandala","planning","nutrition","japanese"];
   const swipeStart=useRef<{x:number;y:number;ok:boolean}|null>(null);
   const viewSwipe={
     onTouchStart:(e:React.TouchEvent)=>{
@@ -1585,7 +1586,7 @@ export default function App() {
       }
       const t=e.target as HTMLElement;
       if(t instanceof HTMLInputElement||t instanceof HTMLTextAreaElement||t instanceof HTMLSelectElement||t.isContentEditable) return;
-      if(k.showPanel||k.showCleanup||k.view==="nutrition") return;
+      if(k.showPanel||k.showCleanup||k.view==="nutrition"||k.view==="japanese") return;
       if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){
         if(k.toast?.undo){e.preventDefault();k.toast.undo();}
         return;
@@ -1704,6 +1705,7 @@ export default function App() {
               <span style={{width:9}}/>만다라트
             </button>
             <button style={navItem(view==="nutrition")} onClick={()=>setView("nutrition")}><span style={{width:9}}/>식단·운동</button>
+            <button style={navItem(view==="japanese")} onClick={()=>setView("japanese")}><span style={{width:9}}/>일본어</button>
             <button style={navItem(view==="planning")} onClick={()=>setView("planning")}>
               <span style={{width:9}}/>플래닝
             </button>
@@ -1732,7 +1734,7 @@ export default function App() {
             padding:isMobile?"10px 8px 8px":"14px 18px 10px",display:"flex",flexDirection:"column",gap:8}}>
             {isMobile&&(
               <div style={{display:"inline-flex",alignSelf:"flex-start",background:"#fff",border:"1px solid #18181b",borderRadius:999,padding:2}}>
-                {([["kanban","칸반"],["mandala","만다라트"],["planning","플래닝"],["nutrition","식단·운동"]] as const).map(([id,ko])=>(
+                {([["kanban","칸반"],["mandala","만다라트"],["planning","플래닝"],["nutrition","식단·운동"],["japanese","일본어"]] as const).map(([id,ko])=>(
                   <button key={id} onClick={()=>{ setView(id); if(id==="kanban") setQuickStatus(null); }} className={view===id?"btn-dark":""}
                     style={{padding:"4px 14px",borderRadius:999,fontSize:11.5,fontWeight:600,color:view===id?"#fff":"#52525b"}}>{ko}</button>
                 ))}
@@ -1760,7 +1762,7 @@ export default function App() {
             )}
             {view!=="kanban"&&!isMobile&&(
               <div style={{fontSize:13,fontWeight:800,letterSpacing:"0.06em",color:"#18181b"}}>
-                {view==="nutrition"?"식단·운동":view==="mandala"?"만다라트":"플래닝"}
+                {view==="nutrition"?"식단·운동":view==="japanese"?"일본어":view==="mandala"?"만다라트":"플래닝"}
               </div>
             )}
           </div>
@@ -1769,10 +1771,10 @@ export default function App() {
             {...(isMobile?viewSwipe:{})}>
             {isMobile&&view==="kanban"&&(
               <div style={{fontSize:10.5,color:"#a1a1aa",padding:"0 2px 8px",lineHeight:1.5}}>
-                ← → 화면을 밀면 칸반·만다라트·플래닝·식단 이동 · 카드를 왼쪽으로 밀면 삭제 · + 로 빠른 추가
+                ← → 화면을 밀면 칸반·만다라트·플래닝·식단·일본어 이동 · 카드를 왼쪽으로 밀면 삭제 · + 로 빠른 추가
               </div>
             )}
-            {view==="nutrition" ? <NutritionDashboard/> : loading
+            {view==="nutrition" ? <NutritionDashboard/> : view==="japanese" ? <JapaneseDashboard/> : loading
               ? <div style={{textAlign:"center",color:"var(--text-light)",paddingTop:60,fontSize:13}}>불러오는 중…</div>
               : view==="kanban"
               ? <KanbanView items={items} selectedKey={selectedKey} onSelect={setSelectedKey}
