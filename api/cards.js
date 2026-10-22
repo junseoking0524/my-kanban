@@ -143,14 +143,26 @@ function eventTimes(due) {
   return { start: { date: due }, end: { date: next } };
 }
 
-async function insertEvent(calendar, c) {
-  if (!c.dueDate || !c.labelId || !CALENDAR_MAP[c.labelId]) return '';
+// 어느 캘린더에 넣을지: 업무(회사) → DS 대상 업무 캘린더, Biz·개인 → 준석 개인 스케쥴.
+// 패널에서 라벨(가족/준석/대상업무/미분류)을 직접 골랐으면 그 선택을 따르고,
+// 비어 있거나 '기본'이면 구분(category)으로 정한다.
+function calendarKey(c, boardName) {
+  const explicit = ['family', 'junseok', 'business', 'noupdate'];
+  if (explicit.includes(c.labelId)) return c.labelId;
+  const cat = c.category || (boardName === 'personal' ? 'personal' : 'company');
+  return cat === 'company' ? 'business' : 'junseok';
+}
+
+async function insertEvent(calendar, c, boardName) {
+  if (!c.dueDate) return '';
+  const key = calendarKey(c, boardName);
+  if (!CALENDAR_MAP[key]) return '';
   try {
     const event = await calendar.events.insert({
-      calendarId: CALENDAR_MAP[c.labelId],
+      calendarId: CALENDAR_MAP[key],
       requestBody: { summary: c.title, description: c.note || '', ...eventTimes(c.dueDate) },
     });
-    return `${c.labelId}:${event.data.id}`;
+    return `${key}:${event.data.id}`;
   } catch (e) {
     console.error('Calendar insert error:', e.message);
     return '';
@@ -212,7 +224,7 @@ export default async function handler(req, res) {
     // POST: 카드 추가 (+ 캘린더 등록)
     if (req.method === 'POST') {
       const c = { ...req.body, id: req.body.id || newId() };
-      const calEventId = await insertEvent(calendar, c);
+      const calEventId = await insertEvent(calendar, c, sheetName);
       await insertRow(sheets, sheetName, cardToRow(c, calEventId));
       return res.status(200).json({ ok: true, card: { ...c, calEventId } });
     }
@@ -227,12 +239,15 @@ export default async function handler(req, res) {
       const old = rowToCard(rows[rowIdx]);
       let calEventId = old.calEventId;
 
+      const newKey = calendarKey(c, sheetName);
+      const oldKey = (old.calEventId || '').split(':')[0];
       const calChanged =
         old.title !== (c.title || '') || old.note !== (c.note || '') ||
-        old.dueDate !== (c.dueDate || '') || old.labelId !== (c.labelId || '');
+        old.dueDate !== (c.dueDate || '') || old.labelId !== (c.labelId || '') ||
+        (c.dueDate && !old.calEventId) || (old.calEventId && oldKey !== newKey);
       if (calChanged) {
         await deleteEvent(calendar, old.calEventId);
-        calEventId = await insertEvent(calendar, c);
+        calEventId = await insertEvent(calendar, c, sheetName);
       }
 
       await sheets.spreadsheets.values.update({
