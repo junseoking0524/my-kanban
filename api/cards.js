@@ -143,14 +143,14 @@ function eventTimes(due) {
   return { start: { date: due }, end: { date: next } };
 }
 
-// 어느 캘린더에 넣을지: 업무(회사) → DS 대상 업무 캘린더, Biz·개인 → 준석 개인 스케쥴.
+// 어느 캘린더에 넣을지: 업무(회사) → DS 대상 업무 캘린더, Biz → 기본 캘린더, 개인 → 준석 개인 스케쥴.
 // 패널에서 라벨(가족/준석/대상업무/미분류)을 직접 골랐으면 그 선택을 따르고,
 // 비어 있거나 '기본'이면 구분(category)으로 정한다.
 function calendarKey(c, boardName) {
   const explicit = ['family', 'junseok', 'business', 'noupdate'];
   if (explicit.includes(c.labelId)) return c.labelId;
   const cat = c.category || (boardName === 'personal' ? 'personal' : 'company');
-  return cat === 'company' ? 'business' : 'junseok';
+  return cat === 'company' ? 'business' : cat === 'biz' ? 'default' : 'junseok';
 }
 
 async function insertEvent(calendar, c, boardName) {
