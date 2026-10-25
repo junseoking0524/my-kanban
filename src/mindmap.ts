@@ -14,6 +14,7 @@ export type MindMap = {
   id: string;
   title: string;
   root: Topic;
+  folder?: string;
   updatedAt: string;
   revision?: string;
   dirty?: boolean;
