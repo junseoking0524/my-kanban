@@ -1,0 +1,234 @@
+.mm {
+  background: #fff;
+  border: 1px solid #e1e3e8;
+  border-radius: 12px;
+  overflow: hidden;
+  color: #27272a;
+}
+.mm button,
+.mm select,
+.mm input,
+.mm textarea {
+  font: inherit;
+}
+.mm button {
+  border: 1px solid #dddfe5;
+  border-radius: 6px;
+  padding: 7px 10px;
+  background: #fff;
+  color: #3f3f46;
+}
+.mm button:hover {
+  background: #f1f3fa;
+}
+.mm button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.mm button:focus-visible,
+.mm input:focus-visible,
+.mm select:focus-visible,
+.mm-canvas:focus-visible {
+  outline: 2px solid #6475d9;
+  outline-offset: 2px;
+}
+.mm-toolbar,
+.mm-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #ececee;
+}
+.mm input,
+.mm select,
+.mm textarea {
+  border: 1px solid #dddfe5;
+  border-radius: 6px;
+  padding: 7px 8px;
+  min-width: 0;
+  background: #fff;
+  color: #27272a;
+}
+.mm-toolbar select {
+  max-width: 220px;
+}
+.mm-save {
+  font-size: 11px;
+  color: #64748b;
+  margin-left: auto;
+}
+.mm-actions > input {
+  font-weight: 700;
+  width: 170px;
+}
+.mm-zoom {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: auto;
+  font-size: 11px;
+}
+.mm-workspace {
+  display: flex;
+  height: calc(100vh - 260px);
+  min-height: 460px;
+}
+.mm-canvas {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  background-color: #fafbfc;
+  background-image: radial-gradient(#d9dce5 0.8px, transparent 0.8px);
+  background-size: 20px 20px;
+  overscroll-behavior: contain;
+}
+.mm-lines {
+  position: absolute;
+  pointer-events: none;
+}
+.mm-node {
+  width: 168px;
+  min-height: 50px;
+  position: absolute;
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border: 2px solid;
+  border-radius: 10px;
+  box-shadow: 0 3px 8px #24293908;
+}
+.mm-node.mm-selected {
+  outline: 3px solid #aeb9f080;
+  outline-offset: 4px;
+}
+.mm-node.mm-root {
+  background: #27272a;
+  color: white;
+}
+.mm-node .mm-topic {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  min-height: 46px;
+  width: 100%;
+  padding: 7px 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  font-weight: 600;
+  font-size: 13px;
+}
+.mm-node .mm-topic:hover {
+  background: #8895cb15;
+}
+.mm-node .mm-fold {
+  position: absolute;
+  right: -12px;
+  bottom: -12px;
+  width: 23px;
+  height: 23px;
+  padding: 0;
+  border-radius: 50%;
+  background: #fff;
+  color: #52525b;
+}
+.mm-inspector {
+  width: 235px;
+  flex-shrink: 0;
+  padding: 16px;
+  border-left: 1px solid #e5e7eb;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+.mm-inspector label {
+  font-size: 11px;
+  color: #71717a;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.mm-inspector input,
+.mm-inspector textarea,
+.mm-inspector select {
+  width: 100%;
+  font-size: 12px;
+  color: #27272a;
+}
+.mm-inspector input[type="color"] {
+  height: 32px;
+  padding: 3px;
+}
+.mm-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #8a8d96;
+}
+.mm-inspector hr {
+  border: 0;
+  border-top: 1px solid #e5e7eb;
+  width: 100%;
+}
+.mm-inspector p {
+  font-size: 11px;
+  margin: 0;
+  line-height: 1.7;
+  color: #71717a;
+}
+.mm-inspector .mm-help {
+  margin-top: 12px;
+}
+.mm-error {
+  padding: 10px 12px;
+  background: #fff5e9;
+  color: #9a5417;
+  line-height: 1.8;
+  font-size: 12px;
+}
+.mm-error button {
+  margin-left: 8px;
+}
+.mm-inspector a {
+  color: #5568c4;
+}
+@media (max-width: 800px) {
+  .mm-workspace {
+    flex-direction: column;
+    height: auto;
+  }
+  .mm-canvas {
+    height: 55vh;
+    min-height: 340px;
+    flex: auto;
+  }
+  .mm-inspector {
+    width: 100%;
+    max-height: 350px;
+    border-left: 0;
+    border-top: 1px solid #e5e7eb;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .mm-inspector .mm-help,
+  .mm-inspector hr {
+    grid-column: 1/-1;
+  }
+  .mm-toolbar button,
+  .mm-actions button {
+    font-size: 10px;
+    padding: 7px;
+  }
+  .mm-save {
+    width: 100%;
+    margin-left: 0;
+  }
+  .mm-zoom {
+    margin-left: 0;
+  }
+}
