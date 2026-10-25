@@ -169,6 +169,20 @@ const assert = require("node:assert/strict");
     await page.getByLabel("마인드맵 선택", { exact: true }).inputValue(),
     firstId,
   );
+  await page
+    .getByRole("button", { name: "새 마인드맵 주제 목록", exact: true })
+    .click();
+  assert.match(
+    await page
+      .getByLabel("마인드맵 선택", { exact: true })
+      .locator("option:checked")
+      .textContent(),
+    /새 마인드맵/,
+  );
+  await page
+    .locator(".mm-map-row .mm-tree-name")
+    .filter({ hasText: "블로그 계획" })
+    .click();
   page.once("dialog", (d) => d.accept("업무"));
   await page.getByRole("button", { name: "＋ 폴더", exact: true }).click();
   assert.equal(

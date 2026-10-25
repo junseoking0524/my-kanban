@@ -119,9 +119,18 @@ function MapLibrary({
                     <button
                       className="mm-tree-toggle"
                       aria-label={`${m.title} 주제 목록`}
-                      onClick={() => toggle(m.id)}
+                      onClick={() => {
+                        if (active !== m.id) {
+                          onMap(m.id);
+                          setFolded((p) => {
+                            const n = new Set(p);
+                            n.delete(m.id);
+                            return n;
+                          });
+                        } else toggle(m.id);
+                      }}
                     >
-                      {folded.has(m.id) ? "▸" : "▾"}
+                      {active !== m.id || folded.has(m.id) ? "▸" : "▾"}
                     </button>
                     <button
                       className="mm-tree-name"
