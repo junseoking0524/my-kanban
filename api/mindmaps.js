@@ -24,6 +24,48 @@ export function validate(map) {
     /^[a-zA-Z0-9_-]{1,100}$/.test(map.id) &&
     typeof map.title === "string" &&
     walk(map.root, 0) &&
+    (!map.mode || map.mode === "mindmap" || map.mode === "flow") &&
+    (!map.floating ||
+      (Array.isArray(map.floating) &&
+        map.floating.length <= 100 &&
+        new Set(map.floating.map((n) => n?.id)).size === map.floating.length &&
+        map.floating.every(
+          (n) =>
+            n &&
+            typeof n.id === "string" &&
+            !ids.has(n.id) &&
+            typeof n.text === "string" &&
+            typeof n.color === "string" &&
+            Number.isFinite(n.x) &&
+            Number.isFinite(n.y) &&
+            n.x >= 0 &&
+            n.y >= 0 &&
+            n.x <= 20000 &&
+            n.y <= 20000,
+        ))) &&
+    (!map.positions ||
+      (typeof map.positions === "object" &&
+        Object.values(map.positions).every(
+          (p) =>
+            p &&
+            Number.isFinite(p.x) &&
+            Number.isFinite(p.y) &&
+            p.x >= 0 &&
+            p.y >= 0 &&
+            p.x <= 20000 &&
+            p.y <= 20000,
+        ))) &&
+    (!map.links ||
+      (Array.isArray(map.links) &&
+        map.links.length <= 500 &&
+        map.links.every(
+          (l) =>
+            l &&
+            typeof l.id === "string" &&
+            ids.has(l.from) &&
+            ids.has(l.to) &&
+            typeof l.label === "string",
+        ))) &&
     JSON.stringify(map).length < 790000
   );
 }
@@ -106,11 +148,9 @@ export default async function handler(req, res) {
     const idx = rows.findIndex((r) => r[0] === map.id),
       old = idx >= 0 ? parse(rows[idx]) : null;
     if (old && old.revision !== (map.revision || ""))
-      return res
-        .status(409)
-        .json({
-          error: "다른 화면에서 수정되었습니다. 복사본으로 저장해 주세요.",
-        });
+      return res.status(409).json({
+        error: "다른 화면에서 수정되었습니다. 복사본으로 저장해 주세요.",
+      });
     const revision = crypto.randomUUID(),
       clean = { ...map, dirty: false, revision };
     const json = JSON.stringify(clean),
@@ -153,11 +193,9 @@ export default async function handler(req, res) {
     return res.json({ revision });
   } catch (e) {
     console.error("[Mindmaps]", e.message);
-    return res
-      .status(500)
-      .json({
-        error:
-          "마인드맵 저장소 연결에 실패했습니다. 복구본을 보관하고 다시 시도해주세요.",
-      });
+    return res.status(500).json({
+      error:
+        "마인드맵 저장소 연결에 실패했습니다. 복구본을 보관하고 다시 시도해주세요.",
+    });
   }
 }

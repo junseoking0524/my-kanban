@@ -112,3 +112,30 @@ test("Sheets API roundtrip, chunking and stale revision rejection", async () => 
     );
   }
 });
+
+test("flow metadata and floating memo bounds are validated", () => {
+  const m = {
+    id: "flow-test",
+    title: "순서도",
+    mode: "flow",
+    root: {
+      id: "a",
+      title: "시작",
+      children: [{ id: "b", title: "판단", shape: "decision", children: [] }],
+    },
+    floating: [
+      { id: "note", text: "독립 메모", x: 300, y: 200, color: "#fff4bf" },
+    ],
+    positions: { a: { x: 250, y: 100 } },
+    links: [{ id: "return", from: "b", to: "a", label: "다시" }],
+  };
+  assert(validate(m));
+  m.links[0].to = "missing";
+  assert.equal(validate(m), false);
+  m.links[0].to = "a";
+  m.floating[0].x = -100;
+  assert.equal(validate(m), false);
+  m.floating[0].x = 100;
+  m.floating.push({ ...m.floating[0] });
+  assert.equal(validate(m), false);
+});

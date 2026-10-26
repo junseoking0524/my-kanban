@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import type { FloatingNote } from "./FloatingNotes";
 export type Topic = {
   id: string;
   title: string;
@@ -7,6 +8,8 @@ export type Topic = {
   color?: string;
   collapsed?: boolean;
   children: Topic[];
+  shape?: "process" | "decision" | "terminal";
+  edgeLabel?: string;
   cardId?: string;
   boardId?: string;
 };
@@ -15,6 +18,10 @@ export type MindMap = {
   title: string;
   root: Topic;
   folder?: string;
+  mode?: "mindmap" | "flow";
+  floating?: FloatingNote[];
+  positions?: Record<string, { x: number; y: number }>;
+  links?: { id: string; from: string; to: string; label: string }[];
   updatedAt: string;
   revision?: string;
   dirty?: boolean;
@@ -81,6 +88,48 @@ export function validateMap(value: unknown): value is MindMap {
     /^[a-zA-Z0-9_-]{1,100}$/.test(m.id) &&
     typeof m.title === "string" &&
     check(m.root, 0) &&
+    (!m.mode || m.mode === "mindmap" || m.mode === "flow") &&
+    (!m.floating ||
+      (Array.isArray(m.floating) &&
+        m.floating.length <= 100 &&
+        new Set(m.floating.map((n) => n?.id)).size === m.floating.length &&
+        m.floating.every(
+          (n) =>
+            n &&
+            typeof n.id === "string" &&
+            !ids.has(n.id) &&
+            typeof n.text === "string" &&
+            typeof n.color === "string" &&
+            Number.isFinite(n.x) &&
+            Number.isFinite(n.y) &&
+            n.x >= 0 &&
+            n.y >= 0 &&
+            n.x <= 20000 &&
+            n.y <= 20000,
+        ))) &&
+    (!m.positions ||
+      (typeof m.positions === "object" &&
+        Object.values(m.positions).every(
+          (p) =>
+            p &&
+            Number.isFinite(p.x) &&
+            Number.isFinite(p.y) &&
+            p.x >= 0 &&
+            p.y >= 0 &&
+            p.x <= 20000 &&
+            p.y <= 20000,
+        ))) &&
+    (!m.links ||
+      (Array.isArray(m.links) &&
+        m.links.length <= 500 &&
+        m.links.every(
+          (l) =>
+            l &&
+            typeof l.id === "string" &&
+            ids.has(l.from) &&
+            ids.has(l.to) &&
+            typeof l.label === "string",
+        ))) &&
     JSON.stringify(m).length < 790000
   );
 }
@@ -142,8 +191,71 @@ export function layout(root: Topic) {
     }
   return { nodes, edges, width: cx * 2, height: total + 160 };
 }
+
+export function mapLayout(map: MindMap) {
+  let base = layout(map.root);
+  if (map.mode === "flow") {
+    const nodes: typeof base.nodes = [],
+      edges: typeof base.edges = [];
+    const width = (t: Topic): number =>
+      t.collapsed || !t.children.length
+        ? 240
+        : t.children.reduce((s, c) => s + width(c), 0);
+    const walk = (t: Topic, left: number, depth: number) => {
+      const w = width(t),
+        pos = map.positions?.[t.id];
+      nodes.push({
+        topic: t,
+        x: pos?.x ?? left + w / 2,
+        y: pos?.y ?? 120 + depth * 160,
+        color: t.color || "#6475d9",
+      });
+      if (!t.collapsed) {
+        let x = left;
+        for (const c of t.children) {
+          edges.push({ a: t.id, b: c.id, color: c.color || "#6475d9" });
+          walk(c, x, depth + 1);
+          x += width(c);
+        }
+      }
+    };
+    walk(map.root, 150, 0);
+    base = {
+      nodes,
+      edges,
+      width: Math.max(1100, ...nodes.map((n) => n.x + 300)),
+      height: Math.max(700, ...nodes.map((n) => n.y + 200)),
+    };
+  }
+  const visible = new Set(base.nodes.map((n) => n.topic.id));
+  const edges = base.edges.map((e) => ({
+    ...e,
+    id: "tree-" + e.b,
+    label: findTopic(map.root, e.b)?.edgeLabel || "",
+  }));
+  for (const l of map.links || [])
+    if (visible.has(l.from) && visible.has(l.to))
+      edges.push({
+        a: l.from,
+        b: l.to,
+        id: l.id,
+        label: l.label,
+        color: "#9b72bb",
+      });
+  return {
+    ...base,
+    edges,
+    width: Math.max(base.width, ...(map.floating || []).map((n) => n.x + 310)),
+    height: Math.max(
+      base.height,
+      ...(map.floating || []).map((n) => n.y + 260),
+    ),
+  };
+}
+
 type XTopic = {
   title?: string;
+  position?: { x: number; y: number };
   href?: string;
   notes?: { plain?: { content?: string } };
   children?: Record<string, XTopic[]>;
@@ -160,9 +272,9 @@ function fromX(t: XTopic, depth = 0, counter = { n: 0 }): Topic {
     href: t.href || "",
     color: t.style?.properties?.["line-color"],
     collapsed: t.branch === "folded",
-    children: Object.values(t.children || {})
-      .flat()
-      .map((c) => fromX(c, depth + 1, counter)),
+    children: (t.children?.attached || []).map((c) =>
+      fromX(c, depth + 1, counter),
+    ),
   };
 }
 function xmlTopic(el: Element, depth = 0, counter = { n: 0 }): Topic {
@@ -191,10 +303,30 @@ function xmlTopic(el: Element, depth = 0, counter = { n: 0 }): Topic {
       : [],
   };
 }
+function fingerprint(text: string) {
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i++)
+    hash = Math.imul(hash ^ text.charCodeAt(i), 16777619);
+  return (hash >>> 0).toString(16);
+}
 export async function importXmind(data: ArrayBuffer): Promise<MindMap[]> {
   if (data.byteLength > 20 * 1024 * 1024)
     throw new Error("20MB 이하의 파일을 선택해주세요.");
   const zip = await JSZip.loadAsync(data);
+  let nativeBackup: { map: MindMap; fingerprint: string } | undefined;
+  const native = zip.file("kanban-map.json");
+  if (native) {
+    const info = native as unknown as { _data?: { uncompressedSize?: number } };
+    if ((info._data?.uncompressedSize || 0) > 800000)
+      throw new Error("백업 데이터가 너무 큽니다.");
+    const raw = await native.async("string");
+    if (raw.length > 800000) throw new Error("백업 데이터가 너무 큽니다.");
+    try {
+      nativeBackup = JSON.parse(raw);
+    } catch {
+      /* fall back to XMind content */
+    }
+  }
   const entry = zip.file("content.json") || zip.file("content.xml");
   if (!entry) throw new Error("XMind 주제 데이터를 찾을 수 없습니다.");
   // Reject oversized inflated content before allocating it (JSZip's documented ZIP metadata is internal).
@@ -204,7 +336,21 @@ export async function importXmind(data: ArrayBuffer): Promise<MindMap[]> {
   const text = await entry.async("string");
   if (text.length > 4 * 1024 * 1024)
     throw new Error("주제 데이터가 너무 큽니다.");
-  let sheets: { title: string; root: Topic }[];
+  if (
+    nativeBackup &&
+    nativeBackup.fingerprint === fingerprint(text) &&
+    validateMap(nativeBackup.map)
+  )
+    return [
+      {
+        ...nativeBackup.map,
+        id: uid(),
+        revision: undefined,
+        dirty: true,
+        updatedAt: new Date().toISOString(),
+      },
+    ];
+  let sheets: { title: string; root: Topic; floating?: FloatingNote[] }[];
   if (zip.file("content.json")) {
     const parsed = JSON.parse(text) as { title?: string; rootTopic: XTopic }[];
     if (!Array.isArray(parsed) || !parsed.length || parsed.length > 30)
@@ -212,6 +358,15 @@ export async function importXmind(data: ArrayBuffer): Promise<MindMap[]> {
     sheets = parsed.map((s) => ({
       title: s.title || "가져온 마인드맵",
       root: fromX(s.rootTopic),
+      floating: (s.rootTopic.children?.detached || []).map((t, i) => ({
+        id: uid(),
+        text: [t.title || "", t.notes?.plain?.content || ""]
+          .filter(Boolean)
+          .join("\n"),
+        x: Math.max(110, Math.min(19000, t.position?.x ?? 300 + i * 280)),
+        y: Math.max(80, Math.min(19000, t.position?.y ?? 300)),
+        color: "#fff4bf",
+      })),
     }));
   } else {
     const dom = new DOMParser().parseFromString(text, "application/xml");
@@ -256,19 +411,40 @@ function toX(t: Topic): object {
 }
 export async function exportXmind(map: MindMap) {
   const zip = new JSZip();
-  zip.file(
-    "content.json",
-    JSON.stringify([
-      {
-        id: map.id,
-        class: "sheet",
-        title: map.title,
-        rootTopic: {
-          ...toX(map.root),
-          structureClass: "org.xmind.ui.map.unbalanced",
+
+  const content = JSON.stringify([
+    {
+      id: map.id,
+      class: "sheet",
+      title: map.title,
+      relationships: (map.links || []).map((l) => ({
+        id: l.id,
+        end1Id: l.from,
+        end2Id: l.to,
+        title: l.label,
+      })),
+      rootTopic: {
+        ...toX(map.root),
+        children: {
+          attached: map.root.children.map(toX),
+          detached: (map.floating || []).map((n) => ({
+            id: n.id,
+            title: n.text,
+            position: { x: n.x, y: n.y },
+            class: "topic",
+          })),
         },
+        structureClass:
+          map.mode === "flow"
+            ? "org.xmind.ui.org-chart.down"
+            : "org.xmind.ui.map.unbalanced",
       },
-    ]),
+    },
+  ]);
+  zip.file("content.json", content);
+  zip.file(
+    "kanban-map.json",
+    JSON.stringify({ map, fingerprint: fingerprint(content) }),
   );
   zip.file(
     "metadata.json",
@@ -277,7 +453,11 @@ export async function exportXmind(map: MindMap) {
   zip.file(
     "manifest.json",
     JSON.stringify({
-      "file-entries": { "content.json": {}, "metadata.json": {} },
+      "file-entries": {
+        "content.json": {},
+        "metadata.json": {},
+        "kanban-map.json": {},
+      },
     }),
   );
   return zip.generateAsync({

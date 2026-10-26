@@ -407,3 +407,211 @@
   color: #78839c;
   line-height: 1.6;
 }
+
+.mm-focus {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  border: 0;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  background: #fff;
+}
+.mm:fullscreen {
+  width: 100vw;
+  height: 100dvh;
+}
+.mm-focus .mm-workspace {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+.mm-focus .mm-inspector {
+  max-height: none;
+}
+.mm-focusbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #20232c;
+  color: #fff;
+  flex-wrap: wrap;
+}
+.mm-focusbar strong {
+  margin-right: auto;
+}
+.mm-focusbar span {
+  font-size: 10px;
+  color: #b1b8ca;
+}
+.mm-focusbar button {
+  background: #303543;
+  border-color: #535c70;
+  color: #f4f5fb;
+  font-size: 11px;
+}
+.mm-tools-hidden .mm-toolbar,
+.mm-tools-hidden .mm-actions,
+.mm-tools-hidden .mm-nav-hint {
+  display: none;
+}
+.mm-workroom-link {
+  font-size: 11px;
+  color: #5364b0;
+  padding: 6px;
+}
+.mm-edge-label {
+  font-size: 12px;
+  fill: #536079;
+  paint-order: stroke;
+  stroke: white;
+  stroke-width: 5px;
+  stroke-linejoin: round;
+}
+.mm-node.mm-terminal {
+  border-radius: 999px;
+}
+.mm-node.mm-decision {
+  height: 72px;
+  min-height: 72px;
+  background: transparent !important;
+  border: 0;
+  box-shadow: none;
+  justify-content: center;
+}
+.mm-decision-shape {
+  position: absolute;
+  inset: 0;
+  width: 168px;
+  height: 72px;
+  pointer-events: none;
+}
+.mm-decision .mm-topic {
+  position: relative;
+  width: 105px;
+  white-space: normal;
+  font-size: 12px;
+  color: #35334b;
+}
+.mm-flow-node .mm-position-handle {
+  position: absolute;
+  left: -18px;
+  top: -12px;
+  z-index: 3;
+}
+.mm-position-handle {
+  touch-action: none;
+  cursor: move !important;
+  user-select: none;
+  font-size: 16px !important;
+  padding: 0 4px !important;
+  background: #f4f5f9 !important;
+  color: #65718e !important;
+  border-radius: 5px !important;
+}
+.mm-flow-properties {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  background: #f5f6fb;
+  border-radius: 8px;
+}
+.mm-link-item {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+.mm-link-item span {
+  flex: 1;
+}
+.mm-node.mm-floating {
+  width: 250px;
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0 10px 10px;
+  box-shadow: 0 6px 18px #40382715;
+  z-index: 5;
+  border-radius: 8px;
+}
+.mm-floating > .mm-position-handle {
+  position: absolute;
+  left: 6px;
+  top: 5px;
+  border: 0;
+  background: transparent !important;
+}
+.mm-floating-heading {
+  font-size: 10px;
+  padding: 8px 0 8px 25px;
+  color: #756c4d;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.mm-floating-heading button {
+  border: 0;
+  padding: 0 4px;
+  background: transparent;
+}
+.mm-floating textarea {
+  background: transparent;
+  border: 0;
+  resize: vertical;
+  min-height: 100px;
+  max-height: 160px;
+  font-size: 12px;
+  line-height: 1.6;
+  width: 100%;
+  outline: none;
+}
+.mm-floating select {
+  padding: 3px;
+  font-size: 10px;
+  background: transparent;
+  align-self: flex-end;
+  width: 65px;
+  border-color: #bba96866;
+}
+@media (max-width: 800px) {
+  .mm-focus .mm-workspace {
+    flex-direction: column;
+  }
+  .mm-focus .mm-canvas {
+    height: auto;
+    min-height: 180px;
+    flex: 1;
+  }
+  .mm-focus .mm-inspector {
+    max-height: 32vh;
+    flex-shrink: 0;
+  }
+  .mm-focusbar {
+    padding: 6px;
+  }
+  .mm-focusbar span {
+    display: none;
+  }
+  .mm-focusbar button {
+    font-size: 10px;
+    padding: 5px;
+  }
+  .mm-focusbar strong {
+    font-size: 11px;
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+.mm-focusbar button:hover {
+  background: #414b61;
+  color: #fff;
+}

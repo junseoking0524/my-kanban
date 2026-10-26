@@ -4,7 +4,7 @@ import {
   exportXmind,
   findTopic,
   importXmind,
-  layout,
+  mapLayout,
   moveTopic,
   newMap,
   newTopic,
@@ -14,6 +14,7 @@ import {
 } from "./mindmap";
 import type { MindMap, Topic } from "./mindmap";
 import "./mindmap.css";
+import FloatingNotes, { PositionHandle } from "./FloatingNotes";
 type CardRef = { id: string; title: string; colId: string; boardId: string };
 type Props = {
   cards: CardRef[];
@@ -196,18 +197,23 @@ export default function MindmapView({
     [zoom, setZoom] = useState(1),
     [linking, setLinking] = useState(false),
     [panelTab, setPanelTab] = useState<"library" | "edit">("library"),
-    [panning, setPanning] = useState(false);
+    [panning, setPanning] = useState(false),
+    [focus, setFocus] = useState(
+      () => new URLSearchParams(location.search).get("focus") === "1",
+    ),
+    [toolsVisible, setToolsVisible] = useState(true),
+    [panelVisible, setPanelVisible] = useState(true),
+    [connectTo, setConnectTo] = useState(""),
+    [connectionLabel, setConnectionLabel] = useState("");
+  const sectionRef = useRef<HTMLElement>(null);
   const current = maps.find((m) => m.id === active) || maps[0],
     topic = current
       ? findTopic(current.root, selected) || current.root
       : undefined;
-  const model = useMemo(
-    () => (current ? layout(current.root) : null),
-    [current],
-  );
-  const history = useRef<Record<string, { past: Topic[]; future: Topic[] }>>(
-    {},
-  );
+  const model = useMemo(() => (current ? mapLayout(current) : null), [current]);
+  const history = useRef<
+    Record<string, { past: MindMap[]; future: MindMap[] }>
+  >({});
   const frame = useRef<HTMLDivElement>(null),
     file = useRef<HTMLInputElement>(null),
     latest = useRef(maps),
@@ -381,8 +387,14 @@ export default function MindmapView({
   const fit = () => {
     const el = frame.current;
     if (!el || !model) return;
-    const xs = model.nodes.map((n) => n.x),
-      ys = model.nodes.map((n) => n.y);
+    const xs = [
+        ...model.nodes.map((n) => n.x),
+        ...(current?.floating || []).flatMap((n) => [n.x, n.x + 250]),
+      ],
+      ys = [
+        ...model.nodes.map((n) => n.y),
+        ...(current?.floating || []).flatMap((n) => [n.y, n.y + 180]),
+      ];
     const minX = Math.min(...xs) - 110,
       maxX = Math.max(...xs) + 110,
       minY = Math.min(...ys) - 70,
@@ -450,7 +462,7 @@ export default function MindmapView({
     const copy = structuredClone(current);
     if (record) {
       const h = history.current[current.id] || { past: [], future: [] };
-      h.past.push(structuredClone(current.root));
+      h.past.push(structuredClone(current));
       h.past = h.past.slice(-50);
       h.future = [];
       history.current[current.id] = h;
@@ -503,6 +515,13 @@ export default function MindmapView({
       replace((m) => {
         const parent = findTopic(m.root, p.id)!;
         parent.children = parent.children.filter((c) => c.id !== topic.id);
+        const ids = new Set<string>();
+        const walk = (t: Topic) => {
+          ids.add(t.id);
+          t.children.forEach(walk);
+        };
+        walk(m.root);
+        m.links = m.links?.filter((l) => ids.has(l.from) && ids.has(l.to));
       });
       setSelected(p.id);
     }
@@ -513,11 +532,15 @@ export default function MindmapView({
     const source = redo ? h?.future : h?.past;
     if (!h || !source?.length) return;
     const root = source.pop()!;
-    (redo ? h.past : h.future).push(structuredClone(current.root));
+    (redo ? h.past : h.future).push(structuredClone(current));
     replace((m) => {
-      m.root = root;
+      m.root = root.root;
+      m.floating = root.floating;
+      m.positions = root.positions;
+      m.links = root.links;
+      m.mode = root.mode;
     }, false);
-    setSelected(root.id);
+    setSelected(root.root.id);
   };
   const center = () => {
     if (!model || !frame.current) return;
@@ -543,6 +566,64 @@ export default function MindmapView({
     setMaps((p) => [...p, m]);
     setActive(m.id);
     setSelected(m.root.id);
+  };
+  const addFloating = () => {
+    if (!model || !frame.current) return;
+    const el = frame.current;
+    const n = {
+      id: uid(),
+      text: "",
+      x: Math.max(110, (el.scrollLeft + el.clientWidth / 2) / zoom - 120),
+      y: Math.max(80, (el.scrollTop + el.clientHeight / 2) / zoom - 40),
+      color: "#fff4bf",
+    };
+    replace((m) => {
+      m.floating = [...(m.floating || []), n];
+    });
+  };
+  const setPosition = (id: string, x: number, y: number) =>
+    replace((m) => {
+      m.positions = { ...m.positions, [id]: { x, y } };
+    });
+  const dropFlow = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (current?.mode !== "flow" || !drag.current || !frame.current) return;
+    const el = frame.current,
+      r = el.getBoundingClientRect();
+    setPosition(
+      drag.current,
+      Math.max(
+        110,
+        Math.min(19000, (e.clientX - r.left + el.scrollLeft) / zoom),
+      ),
+      Math.max(80, Math.min(19000, (e.clientY - r.top + el.scrollTop) / zoom)),
+    );
+    drag.current = "";
+  };
+  const allTopics: Topic[] = [];
+  if (current) {
+    const walk = (t: Topic) => {
+      allTopics.push(t);
+      t.children.forEach(walk);
+    };
+    walk(current.root);
+  }
+  const exitFocus = () => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    setFocus(false);
+    const u = new URL(location.href);
+    u.searchParams.delete("focus");
+    window.history.replaceState(null, "", u);
+  };
+  const fullScreen = async () => {
+    setFocus(true);
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await sectionRef.current?.requestFullscreen();
+    } catch {
+      /* fixed focus view remains available */
+    }
   };
   const newFolder = () => {
     const value = prompt(
@@ -613,13 +694,14 @@ export default function MindmapView({
     : undefined;
   return (
     <section
-      className="mm"
+      ref={sectionRef}
+      className={`mm ${focus ? "mm-focus" : ""} ${!toolsVisible ? "mm-tools-hidden" : ""}`}
       aria-label="마인드맵 편집기"
       onKeyDown={(e) => {
         const el = e.target as HTMLElement;
         if (el.matches("input,textarea,select") || e.nativeEvent.isComposing)
           return;
-        if (!el.closest(".mm-canvas")) return;
+        if (!el.closest(".mm-canvas") || el.closest(".mm-floating")) return;
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
           e.preventDefault();
           undo(e.shiftKey);
@@ -646,6 +728,20 @@ export default function MindmapView({
         }
       }}
     >
+      {focus && (
+        <div className="mm-focusbar">
+          <strong>{current?.title || "마인드맵 작업실"}</strong>
+          <span>집중 작업실</span>
+          <button onClick={() => setToolsVisible((v) => !v)}>
+            {toolsVisible ? "도구 접기" : "도구 펼치기"}
+          </button>
+          <button onClick={() => setPanelVisible((v) => !v)}>
+            {panelVisible ? "패널 숨기기" : "패널 열기"}
+          </button>
+          <button onClick={fullScreen}>전체 화면</button>
+          <button onClick={exitFocus}>집중 종료</button>
+        </div>
+      )}
       <div className="mm-toolbar">
         <select
           aria-label="마인드맵 선택"
@@ -671,6 +767,20 @@ export default function MindmapView({
         >
           📁 보관함 보기
         </button>
+        {!focus && (
+          <>
+            <button onClick={() => setFocus(true)}>집중 모드</button>
+            <button onClick={fullScreen}>전체 화면</button>
+            <a
+              className="mm-workroom-link"
+              href="?view=mindmap&focus=1"
+              target="_blank"
+              rel="noreferrer"
+            >
+              전용 작업실 ↗
+            </a>
+          </>
+        )}
         <button onClick={addMap} disabled={!ready}>
           ＋ 새 맵
         </button>
@@ -757,6 +867,35 @@ export default function MindmapView({
       {ready && current && model && topic && (
         <>
           <div className="mm-actions">
+            <select
+              aria-label="정리 방식"
+              value={current.mode || "mindmap"}
+              onChange={(e) =>
+                replace((m) => {
+                  m.mode = e.target.value as "mindmap" | "flow";
+                })
+              }
+            >
+              <option value="mindmap">마인드맵</option>
+              <option value="flow">순서도</option>
+            </select>
+            <button
+              onClick={addFloating}
+              disabled={(current.floating?.length || 0) >= 100}
+            >
+              ＋ 독립 메모
+            </button>
+            {current.mode === "flow" && (
+              <button
+                onClick={() =>
+                  replace((m) => {
+                    m.positions = {};
+                  })
+                }
+              >
+                순서도 자동 정렬
+              </button>
+            )}
             <input
               aria-label="마인드맵 이름"
               value={current.title}
@@ -766,8 +905,12 @@ export default function MindmapView({
                 }, false)
               }
             />
-            <button onClick={() => add()}>하위 주제 Tab</button>
-            <button onClick={() => add(true)}>같은 단계 Enter</button>
+            <button onClick={() => add()}>
+              {current.mode === "flow" ? "다음 단계 Tab" : "하위 주제 Tab"}
+            </button>
+            <button onClick={() => add(true)}>
+              {current.mode === "flow" ? "분기 단계 Enter" : "같은 단계 Enter"}
+            </button>
             <button onClick={() => undo()}>↶ 실행 취소</button>
             <button onClick={() => undo(true)}>↷ 다시 실행</button>
             <button onClick={remove} disabled={topic.id === current.root.id}>
@@ -884,6 +1027,10 @@ export default function MindmapView({
               }}
               tabIndex={0}
               aria-label="마인드맵 캔버스"
+              onDragOver={(e) => {
+                if (current.mode === "flow") e.preventDefault();
+              }}
+              onDrop={dropFlow}
             >
               <div
                 style={{
@@ -907,33 +1054,90 @@ export default function MindmapView({
                     className="mm-lines"
                     aria-hidden="true"
                   >
+                    <defs>
+                      <marker
+                        id="mm-flow-arrow"
+                        viewBox="0 0 10 10"
+                        refX="9"
+                        refY="5"
+                        markerWidth="7"
+                        markerHeight="7"
+                        orient="auto-start-reverse"
+                      >
+                        <path d="M0 0 L10 5 L0 10 z" fill="context-stroke" />
+                      </marker>
+                    </defs>
                     {model.edges.map((edge) => {
-                      const a = model.nodes.find((n) => n.topic.id === edge.a)!,
-                        b = model.nodes.find((n) => n.topic.id === edge.b)!,
-                        side = b.x > a.x ? 1 : -1;
-                      const x1 = a.x + side * 84,
+                      const a = model.nodes.find((n) => n.topic.id === edge.a),
+                        b = model.nodes.find((n) => n.topic.id === edge.b);
+                      if (!a || !b) return null;
+                      const flow = current.mode === "flow",
+                        down = b.y >= a.y;
+                      const y1 =
+                          a.y +
+                          (down ? 1 : -1) *
+                            (a.topic.shape === "decision" ? 36 : 25),
+                        y2 =
+                          b.y -
+                          (down ? 1 : -1) *
+                            (b.topic.shape === "decision" ? 36 : 25);
+                      const side = b.x > a.x ? 1 : -1,
+                        x1 = a.x + side * 84,
                         x2 = b.x - side * 84;
+                      const custom = flow && !edge.id.startsWith("tree-");
+                      const lane = Math.max(a.x, b.x) + 150;
+                      const d = custom
+                        ? `M${a.x + 84},${a.y} L${lane},${a.y} L${lane},${b.y} L${b.x + 84},${b.y}`
+                        : flow
+                          ? `M${a.x},${y1} L${a.x},${(y1 + y2) / 2} L${b.x},${(y1 + y2) / 2} L${b.x},${y2}`
+                          : `M${x1},${a.y} C${(x1 + x2) / 2},${a.y} ${(x1 + x2) / 2},${b.y} ${x2},${b.y}`;
                       return (
-                        <path
-                          key={edge.b}
-                          d={`M${x1},${a.y} C${(x1 + x2) / 2},${a.y} ${(x1 + x2) / 2},${b.y} ${x2},${b.y}`}
-                          fill="none"
-                          stroke={edge.color}
-                          strokeWidth="2.5"
-                        />
+                        <g key={edge.id}>
+                          <path
+                            d={d}
+                            fill="none"
+                            stroke={edge.color}
+                            strokeWidth="2.5"
+                            markerEnd={flow ? "url(#mm-flow-arrow)" : undefined}
+                          />
+                          {edge.label && (
+                            <text
+                              x={
+                                custom
+                                  ? lane + 8
+                                  : flow
+                                    ? (a.x + b.x) / 2
+                                    : (x1 + x2) / 2
+                              }
+                              y={flow ? (y1 + y2) / 2 - 7 : (a.y + b.y) / 2 - 8}
+                              textAnchor={custom ? "start" : "middle"}
+                              className="mm-edge-label"
+                            >
+                              {edge.label}
+                            </text>
+                          )}
+                        </g>
                       );
                     })}
                   </svg>
                   {model.nodes.map((n) => (
                     <div
                       key={n.topic.id}
-                      className={`mm-node ${n.topic.id === topic.id ? "mm-selected" : ""} ${n.topic.id === current.root.id ? "mm-root" : ""}`}
+                      className={`mm-node ${n.topic.id === topic.id ? "mm-selected" : ""} ${n.topic.id === current.root.id ? "mm-root" : ""} ${current.mode === "flow" ? `mm-flow-node mm-${n.topic.shape || "process"}` : ""}`}
                       style={{
                         left: n.x - 84,
-                        top: n.y - 25,
+                        top:
+                          n.y -
+                          (current.mode === "flow" &&
+                          n.topic.shape === "decision"
+                            ? 36
+                            : 25),
                         borderColor: n.topic.color || n.color,
                       }}
-                      draggable={n.topic.id !== current.root.id}
+                      draggable={
+                        current.mode === "flow" ||
+                        n.topic.id !== current.root.id
+                      }
                       onDragStart={(e) => {
                         drag.current = n.topic.id;
                         e.dataTransfer.setData("text/plain", n.topic.id);
@@ -946,6 +1150,10 @@ export default function MindmapView({
                       onDrop={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
+                        if (current.mode === "flow") {
+                          dropFlow(e);
+                          return;
+                        }
                         const id = drag.current;
                         if (id)
                           replace((m) => {
@@ -954,6 +1162,32 @@ export default function MindmapView({
                         drag.current = "";
                       }}
                     >
+                      {current.mode === "flow" && (
+                        <>
+                          <PositionHandle
+                            x={n.x}
+                            y={n.y}
+                            zoom={zoom}
+                            offsetX={84}
+                            offsetY={n.topic.shape === "decision" ? 36 : 25}
+                            onCommit={(x, y) => setPosition(n.topic.id, x, y)}
+                          />
+                          {n.topic.shape === "decision" && (
+                            <svg
+                              className="mm-decision-shape"
+                              viewBox="0 0 168 72"
+                              aria-hidden="true"
+                            >
+                              <polygon
+                                points="84,1 167,36 84,71 1,36"
+                                fill="#f7f4ff"
+                                stroke={n.color}
+                                strokeWidth="2"
+                              />
+                            </svg>
+                          )}
+                        </>
+                      )}
                       <button
                         className="mm-topic"
                         onClick={() => {
@@ -991,10 +1225,26 @@ export default function MindmapView({
                       )}
                     </div>
                   ))}
+                  <FloatingNotes
+                    notes={current.floating || []}
+                    zoom={zoom}
+                    onChange={(id, patch) =>
+                      replace((m) => {
+                        m.floating = m.floating?.map((n) =>
+                          n.id === id ? { ...n, ...patch } : n,
+                        );
+                      })
+                    }
+                    onDelete={(id) =>
+                      replace((m) => {
+                        m.floating = m.floating?.filter((n) => n.id !== id);
+                      })
+                    }
+                  />
                 </div>
               </div>
             </div>
-            <aside className="mm-inspector">
+            <aside className="mm-inspector" hidden={!panelVisible}>
               <div className="mm-panel-tabs">
                 <button
                   className={panelTab === "library" ? "active" : ""}
@@ -1046,6 +1296,103 @@ export default function MindmapView({
                 </p>
               </div>
               <div className="mm-edit-fields" hidden={panelTab !== "edit"}>
+                {current.mode === "flow" && (
+                  <div className="mm-flow-properties">
+                    <label>
+                      박스 모양
+                      <select
+                        aria-label="순서도 박스 모양"
+                        value={topic.shape || "process"}
+                        onChange={(e) =>
+                          edit((t) => {
+                            t.shape = e.target.value as Topic["shape"];
+                          })
+                        }
+                      >
+                        <option value="process">처리 (사각형)</option>
+                        <option value="decision">판단 (마름모)</option>
+                        <option value="terminal">시작/끝 (둥근 모양)</option>
+                      </select>
+                    </label>
+                    <label>
+                      상위 단계에서 오는 화살표 이름
+                      <input
+                        aria-label="분기 이름"
+                        placeholder="예 / 아니오"
+                        value={topic.edgeLabel || ""}
+                        onChange={(e) =>
+                          edit((t) => {
+                            t.edgeLabel = e.target.value;
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      추가 연결 대상
+                      <select
+                        aria-label="추가 연결 대상"
+                        value={connectTo}
+                        onChange={(e) => setConnectTo(e.target.value)}
+                      >
+                        <option value="">연결할 단계 선택</option>
+                        {allTopics
+                          .filter((t) => t.id !== topic.id)
+                          .map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.title}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    <input
+                      aria-label="연결선 이름"
+                      placeholder="예: 다시 검토"
+                      value={connectionLabel}
+                      onChange={(e) => setConnectionLabel(e.target.value)}
+                    />
+                    <button
+                      disabled={!connectTo || connectTo === topic.id}
+                      onClick={() => {
+                        replace((m) => {
+                          m.links = [
+                            ...(m.links || []),
+                            {
+                              id: uid(),
+                              from: topic.id,
+                              to: connectTo,
+                              label: connectionLabel,
+                            },
+                          ];
+                        });
+                        setConnectTo("");
+                        setConnectionLabel("");
+                      }}
+                    >
+                      방향 화살표 추가
+                    </button>
+                    {current.links
+                      ?.filter((l) => l.from === topic.id || l.to === topic.id)
+                      .map((l) => (
+                        <div key={l.id} className="mm-link-item">
+                          <span>
+                            {findTopic(current.root, l.from)?.title} →{" "}
+                            {findTopic(current.root, l.to)?.title} {l.label}
+                          </span>
+                          <button
+                            aria-label="추가 연결선 삭제"
+                            onClick={() =>
+                              replace((m) => {
+                                m.links = m.links?.filter((x) => x.id !== l.id);
+                              })
+                            }
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                )}
+
                 <span className="mm-eyebrow">선택한 주제</span>
                 <label>
                   제목
