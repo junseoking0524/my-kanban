@@ -11,6 +11,14 @@ export function validate(map) {
       ids.has(t.id) ||
       typeof t.title !== "string" ||
       !Array.isArray(t.children) ||
+      (t.boxWidth !== undefined &&
+        (!Number.isFinite(t.boxWidth) ||
+          t.boxWidth < 120 ||
+          t.boxWidth > 900)) ||
+      (t.boxHeight !== undefined &&
+        (!Number.isFinite(t.boxHeight) ||
+          t.boxHeight < 50 ||
+          t.boxHeight > 1200)) ||
       (t.core !== undefined && typeof t.core !== "boolean") ||
       (t.independent !== undefined && typeof t.independent !== "boolean") ||
       d > 50 ||
@@ -43,6 +51,12 @@ export function validate(map) {
             typeof n.color === "string" &&
             (!n.kind || n.kind === "summary") &&
             (!n.title || typeof n.title === "string") &&
+            (n.width === undefined ||
+              (Number.isFinite(n.width) && n.width >= 120 && n.width <= 900)) &&
+            (n.height === undefined ||
+              (Number.isFinite(n.height) &&
+                n.height >= 50 &&
+                n.height <= 1200)) &&
             (!n.sourceIds ||
               (Array.isArray(n.sourceIds) &&
                 n.sourceIds.length <= 2000 &&

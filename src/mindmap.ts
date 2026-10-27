@@ -10,6 +10,8 @@ export type Topic = {
   children: Topic[];
   shape?: "process" | "decision" | "terminal";
   edgeLabel?: string;
+  boxWidth?: number;
+  boxHeight?: number;
   core?: boolean;
   independent?: boolean;
   cardId?: string;
@@ -34,6 +36,34 @@ export type MindMap = {
   revision?: string;
   dirty?: boolean;
 };
+export function topicSize(t: Topic) {
+  const lines = (t.title || " ").split("\n");
+  const units = (line: string) =>
+    [...line].reduce((n, c) => n + (c.codePointAt(0)! > 127 ? 13 : 7.4), 0);
+  const width =
+    t.boxWidth ??
+    Math.min(420, Math.max(168, ...lines.map((line) => units(line) + 34)));
+  const rows = lines.reduce(
+    (n, line) =>
+      n +
+      Math.max(
+        1,
+        Math.ceil(
+          units(line) /
+            Math.max(60, width * (t.shape === "decision" ? 0.65 : 1) - 34),
+        ),
+      ),
+    0,
+  );
+  return {
+    width,
+    height: Math.max(
+      t.shape === "decision" ? 72 : 50,
+      t.boxHeight || 0,
+      rows * 21 + 22,
+    ),
+  };
+}
 export const uid = () => crypto.randomUUID();
 export const newTopic = (title = "새 주제"): Topic => ({
   id: uid(),
@@ -84,6 +114,14 @@ export function validateMap(value: unknown): value is MindMap {
       ids.has(t.id) ||
       typeof t.title !== "string" ||
       !Array.isArray(t.children) ||
+      (t.boxWidth !== undefined &&
+        (!Number.isFinite(t.boxWidth) ||
+          t.boxWidth < 120 ||
+          t.boxWidth > 900)) ||
+      (t.boxHeight !== undefined &&
+        (!Number.isFinite(t.boxHeight) ||
+          t.boxHeight < 50 ||
+          t.boxHeight > 1200)) ||
       (t.core !== undefined && typeof t.core !== "boolean") ||
       (t.independent !== undefined && typeof t.independent !== "boolean") ||
       depth > 50 ||
@@ -115,6 +153,12 @@ export function validateMap(value: unknown): value is MindMap {
             typeof n.color === "string" &&
             (!n.kind || n.kind === "summary") &&
             (!n.title || typeof n.title === "string") &&
+            (n.width === undefined ||
+              (Number.isFinite(n.width) && n.width >= 120 && n.width <= 900)) &&
+            (n.height === undefined ||
+              (Number.isFinite(n.height) &&
+                n.height >= 50 &&
+                n.height <= 1200)) &&
             (!n.sourceIds ||
               (Array.isArray(n.sourceIds) &&
                 n.sourceIds.length <= 2000 &&
@@ -236,9 +280,24 @@ function singleLayout(map: MindMap) {
     const colors = ["#657b6a", "#a58e68", "#7d84bd", "#b77885", "#609a9f"];
     const size = (t: Topic): number =>
       t.collapsed || !t.children.length
-        ? 90
-        : t.children.reduce((a, c) => a + size(c), 0);
-    const walk = (t: Topic, x: number, top: number, color: string) => {
+        ? topicSize(t).height + 40
+        : Math.max(
+            topicSize(t).height + 40,
+            t.children.reduce((a, c) => a + size(c), 0),
+          );
+    const widths: number[] = [];
+    const measure = (t: Topic, depth: number) => {
+      widths[depth] = Math.max(widths[depth] || 0, topicSize(t).width);
+      if (!t.collapsed) t.children.forEach((c) => measure(c, depth + 1));
+    };
+    measure(map.root, 0);
+    const walk = (
+      t: Topic,
+      x: number,
+      top: number,
+      color: string,
+      depth = 0,
+    ) => {
       const h = size(t);
       nodes.push({ topic: t, x, y: top + h / 2, color: t.color || color });
       if (!t.collapsed) {
@@ -246,7 +305,13 @@ function singleLayout(map: MindMap) {
         for (const [i, c] of t.children.entries()) {
           const col = t === map.root ? colors[i % colors.length] : color;
           edges.push({ a: t.id, b: c.id, color: col });
-          walk(c, x + 260, y, col);
+          walk(
+            c,
+            x + (widths[depth] + widths[depth + 1]) / 2 + 100,
+            y,
+            col,
+            depth + 1,
+          );
           y += size(c);
         }
       }
@@ -374,15 +439,31 @@ function singleLayout(map: MindMap) {
       edges: typeof base.edges = [];
     const width = (t: Topic): number =>
       t.collapsed || !t.children.length
-        ? 240
-        : t.children.reduce((s, c) => s + width(c), 0);
+        ? topicSize(t).width + 72
+        : Math.max(
+            topicSize(t).width + 72,
+            t.children.reduce((s, c) => s + width(c), 0),
+          );
+    const heights: number[] = [];
+    const measure = (t: Topic, d: number) => {
+      heights[d] = Math.max(heights[d] || 0, topicSize(t).height);
+      if (!t.collapsed) t.children.forEach((c) => measure(c, d + 1));
+    };
+    measure(map.root, 0);
+    const ys = heights.map(
+      (_, d) =>
+        120 +
+        heights
+          .slice(0, d)
+          .reduce((n, h, i) => n + (h + heights[i + 1]) / 2 + 90, 0),
+    );
     const walk = (t: Topic, left: number, depth: number) => {
       const w = width(t),
         pos = map.positions?.[t.id];
       nodes.push({
         topic: t,
         x: pos?.x ?? left + w / 2,
-        y: pos?.y ?? 120 + depth * 160,
+        y: pos?.y ?? ys[depth],
         color: t.color || "#6475d9",
       });
       if (!t.collapsed) {
@@ -512,8 +593,12 @@ export function mapLayout(map: MindMap) {
       layoutPositions: undefined,
       floating: [],
     });
-    const minY = Math.min(...part.nodes.map((n) => n.y)),
-      maxY = Math.max(...part.nodes.map((n) => n.y));
+    const minY = Math.min(
+        ...part.nodes.map((n) => n.y - topicSize(n.topic).height / 2),
+      ),
+      maxY = Math.max(
+        ...part.nodes.map((n) => n.y + topicSize(n.topic).height / 2),
+      );
     const delta = first ? 0 : top - minY;
     nodes.push(...part.nodes.map((n) => ({ ...n, y: n.y + delta })));
     edges.push(...part.edges);

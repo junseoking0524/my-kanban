@@ -8,12 +8,13 @@ import {
   newMap,
   newTopic,
   parentOf,
+  topicSize,
   uid,
   validateMap,
 } from "./mindmap";
 import type { MindMap, Topic } from "./mindmap";
 import "./mindmap.css";
-import FloatingNotes, { PositionHandle } from "./FloatingNotes";
+import FloatingNotes, { PositionHandle, ResizeHandle } from "./FloatingNotes";
 import { summaryDraft } from "./mindmap-summary";
 type CardRef = { id: string; title: string; colId: string; boardId: string };
 type Props = {
@@ -463,17 +464,23 @@ export default function MindmapView({
     const el = frame.current;
     if (!el || !model) return;
     const xs = [
-        ...model.nodes.map((n) => n.x),
+        ...model.nodes.flatMap((n) => [
+          n.x - topicSize(n.topic).width / 2,
+          n.x + topicSize(n.topic).width / 2,
+        ]),
         ...(current?.floating || []).flatMap((n) => [
           n.x,
-          n.x + (n.kind === "summary" ? 320 : 250),
+          n.x + (n.width || (n.kind === "summary" ? 330 : 250)),
         ]),
       ],
       ys = [
-        ...model.nodes.map((n) => n.y),
+        ...model.nodes.flatMap((n) => [
+          n.y - topicSize(n.topic).height / 2,
+          n.y + topicSize(n.topic).height / 2,
+        ]),
         ...(current?.floating || []).flatMap((n) => [
           n.y,
-          n.y + (n.kind === "summary" ? 330 : 180),
+          n.y + (n.height || (n.kind === "summary" ? 330 : 180)),
         ]),
       ];
     const minX = Math.min(...xs) - 110,
@@ -582,7 +589,7 @@ export default function MindmapView({
   };
   const add = (sibling = false) => {
     if (!topic || !current) return;
-    const n = newTopic();
+    const n = newTopic("");
     const atRoot =
       sibling && (topic.id === current.root.id || topic.independent);
     if (atRoot) {
@@ -590,6 +597,34 @@ export default function MindmapView({
       n.core = true;
     }
     replace((m) => {
+      const mode = m.mode || "mindmap";
+      const stored =
+        m.layoutPositions?.[mode] ||
+        (mode === "flow" ? m.positions : undefined);
+      if (sibling && stored?.[topic.id]) {
+        const x = stored[topic.id].x;
+        let y =
+          stored[topic.id].y +
+          topicSize(topic).height / 2 +
+          topicSize(n).height / 2 +
+          32;
+        for (
+          let i = 0;
+          i < 100 &&
+          model?.nodes.some(
+            (other) =>
+              Math.abs(other.x - x) <
+                (topicSize(other.topic).width + topicSize(n).width) / 2 + 16 &&
+              Math.abs(other.y - y) <
+                (topicSize(other.topic).height + topicSize(n).height) / 2 + 16,
+          );
+          i++
+        )
+          y += 82;
+        const next = { ...stored, [n.id]: { x, y: Math.min(19000, y) } };
+        m.layoutPositions = { ...m.layoutPositions, [mode]: next };
+        if (mode === "flow") m.positions = next;
+      }
       if (atRoot) {
         m.root.children.push(n);
         return;
@@ -610,29 +645,39 @@ export default function MindmapView({
     setEditingId(n.id);
   };
   const remove = () => {
-    if (!topic || !current || topic.id === current.root.id) return;
-    if (
-      topic.children.length &&
-      !confirm(
-        "이 주제와 하위 가지를 삭제할까요? 실행 취소로 복원할 수 있습니다.",
-      )
-    )
-      return;
-    const p = parentOf(current.root, topic.id);
-    if (p) {
-      replace((m) => {
-        const parent = findTopic(m.root, p.id)!;
-        parent.children = parent.children.filter((c) => c.id !== topic.id);
-        const ids = new Set<string>();
-        const walk = (t: Topic) => {
-          ids.add(t.id);
-          t.children.forEach(walk);
-        };
-        walk(m.root);
-        m.links = m.links?.filter((l) => ids.has(l.from) && ids.has(l.to));
-      });
-      setSelected(p.id);
-    }
+    if (!topic || !current) return;
+    const targets = new Set(
+      (picked.length ? picked : [topic.id]).filter(
+        (id) => id !== current.root.id,
+      ),
+    );
+    if (!targets.size) return;
+    const next = parentOf(current.root, topic.id)?.id || current.root.id;
+    replace((m) => {
+      const keep = new Set<string>();
+      const prune = (t: Topic) => {
+        keep.add(t.id);
+        t.children = t.children.filter((c) => !targets.has(c.id));
+        t.children.forEach(prune);
+      };
+      prune(m.root);
+      m.links = m.links?.filter((l) => keep.has(l.from) && keep.has(l.to));
+      if (m.positions)
+        m.positions = Object.fromEntries(
+          Object.entries(m.positions).filter(([id]) => keep.has(id)),
+        );
+      for (const mode of ["mindmap", "flow", "graph"] as const) {
+        if (m.layoutPositions?.[mode])
+          m.layoutPositions[mode] = Object.fromEntries(
+            Object.entries(m.layoutPositions[mode]!).filter(([id]) =>
+              keep.has(id),
+            ),
+          );
+      }
+    });
+    setSelected(targets.has(next) ? current.root.id : next);
+    setPicked([]);
+    setEditingId("");
   };
   const undo = (redo = false) => {
     if (!current) return;
@@ -649,6 +694,7 @@ export default function MindmapView({
       m.mode = root.mode;
       m.layoutPositions = root.layoutPositions;
     }, false);
+    setPicked([]);
     setSelected(root.root.id);
   };
   const center = () => {
@@ -678,13 +724,7 @@ export default function MindmapView({
   };
   const addCore = () => {
     if (!current || !model || !frame.current) return;
-    let i = 2,
-      name = "핵심 주제 2";
-    while (allTopics.some((t) => t.title === name)) {
-      i++;
-      name = `핵심 주제 ${i}`;
-    }
-    const n = { ...newTopic(name), core: true, independent: true };
+    const n = { ...newTopic(""), core: true, independent: true };
     const el = frame.current;
     let x = Math.max(
         -1000,
@@ -1341,6 +1381,22 @@ export default function MindmapView({
                 자동 정렬
               </button>
             }
+            <button
+              onClick={() =>
+                replace((m) => {
+                  const ids = picked.length ? picked : [topic.id];
+                  for (const id of ids) {
+                    const t = findTopic(m.root, id);
+                    if (t) {
+                      delete t.boxWidth;
+                      delete t.boxHeight;
+                    }
+                  }
+                })
+              }
+            >
+              크기 자동 맞춤
+            </button>
             <input
               aria-label="마인드맵 이름"
               value={current.title}
@@ -1358,8 +1414,17 @@ export default function MindmapView({
             </button>
             <button onClick={() => undo()}>↶ 실행 취소</button>
             <button onClick={() => undo(true)}>↷ 다시 실행</button>
-            <button onClick={remove} disabled={topic.id === current.root.id}>
-              가지 삭제
+            <button
+              onClick={remove}
+              disabled={
+                !(picked.length ? picked : [topic.id]).some(
+                  (id) => id !== current.root.id,
+                )
+              }
+            >
+              {picked.length > 1
+                ? `선택 삭제 (${picked.filter((id) => id !== current.root.id).length})`
+                : "가지 삭제"}
             </button>
             <div className="mm-zoom">
               <button aria-label="축소" onClick={() => changeZoom(zoom / 1.15)}>
@@ -1649,10 +1714,14 @@ export default function MindmapView({
                     model.nodes
                       .filter(
                         (n) =>
-                          n.x >= Math.min(start.x, p.x) &&
-                          n.x <= Math.max(start.x, p.x) &&
-                          n.y >= Math.min(start.y, p.y) &&
-                          n.y <= Math.max(start.y, p.y),
+                          n.x + topicSize(n.topic).width / 2 >=
+                            Math.min(start.x, p.x) &&
+                          n.x - topicSize(n.topic).width / 2 <=
+                            Math.max(start.x, p.x) &&
+                          n.y + topicSize(n.topic).height / 2 >=
+                            Math.min(start.y, p.y) &&
+                          n.y - topicSize(n.topic).height / 2 <=
+                            Math.max(start.y, p.y),
                       )
                       .map((n) => n.topic.id),
                   );
@@ -1770,22 +1839,20 @@ export default function MindmapView({
                         down = b.y >= a.y;
                       const y1 =
                           a.y +
-                          (down ? 1 : -1) *
-                            (a.topic.shape === "decision" ? 36 : 25),
+                          (down ? 1 : -1) * (topicSize(a.topic).height / 2),
                         y2 =
                           b.y -
-                          (down ? 1 : -1) *
-                            (b.topic.shape === "decision" ? 36 : 25);
+                          (down ? 1 : -1) * (topicSize(b.topic).height / 2);
                       const side = b.x > a.x ? 1 : -1,
-                        x1 = a.x + side * 84,
-                        x2 = b.x - side * 84;
+                        x1 = a.x + (side * topicSize(a.topic).width) / 2,
+                        x2 = b.x - (side * topicSize(b.topic).width) / 2;
                       const custom = flow && !edge.id.startsWith("tree-");
                       const lane = Math.max(a.x, b.x) + 150;
                       const graph = current.mode === "graph";
                       const d = graph
                         ? `M${a.x},${a.y} L${b.x},${b.y}`
                         : custom
-                          ? `M${a.x + 84},${a.y} L${lane},${a.y} L${lane},${b.y} L${b.x + 84},${b.y}`
+                          ? `M${a.x + topicSize(a.topic).width / 2},${a.y} L${lane},${a.y} L${lane},${b.y} L${b.x + topicSize(b.topic).width / 2},${b.y}`
                           : flow
                             ? `M${a.x},${y1} L${a.x},${(y1 + y2) / 2} L${b.x},${(y1 + y2) / 2} L${b.x},${y2}`
                             : `M${x1},${a.y} C${(x1 + x2) / 2},${a.y} ${(x1 + x2) / 2},${b.y} ${x2},${b.y}`;
@@ -1842,15 +1909,28 @@ export default function MindmapView({
                       data-node-id={n.topic.id}
                       className={`mm-node ${n.topic.id === topic.id ? "mm-selected" : ""} ${picked.includes(n.topic.id) ? "mm-picked" : ""} ${(n.topic.core ?? n.topic.id === current.root.id) ? "mm-core-topic" : ""} ${n.topic.id === current.root.id ? "mm-root" : ""} ${current.mode === "graph" ? "mm-graph-node" : current.mode === "flow" ? `mm-flow-node mm-${n.topic.shape || "process"}` : ""}`}
                       style={{
-                        left: n.x - (current.mode === "graph" ? 20 : 84),
+                        width:
+                          current.mode === "graph"
+                            ? undefined
+                            : topicSize(n.topic).width,
+                        minHeight:
+                          current.mode === "graph"
+                            ? undefined
+                            : topicSize(n.topic).height,
+                        height:
+                          current.mode === "graph"
+                            ? undefined
+                            : topicSize(n.topic).height,
+                        left:
+                          n.x -
+                          (current.mode === "graph"
+                            ? 20
+                            : topicSize(n.topic).width / 2),
                         top:
                           n.y -
                           (current.mode === "graph"
                             ? 20
-                            : current.mode === "flow" &&
-                                n.topic.shape === "decision"
-                              ? 36
-                              : 25),
+                            : topicSize(n.topic).height / 2),
                         borderColor: n.topic.color || n.color,
                       }}
                       draggable={editingId !== n.topic.id}
@@ -1871,14 +1951,15 @@ export default function MindmapView({
                             x={n.x}
                             y={n.y}
                             zoom={zoom}
-                            offsetX={current.mode === "graph" ? 20 : 84}
+                            offsetX={
+                              current.mode === "graph"
+                                ? 20
+                                : topicSize(n.topic).width / 2
+                            }
                             offsetY={
                               current.mode === "graph"
                                 ? 20
-                                : current.mode === "flow" &&
-                                    n.topic.shape === "decision"
-                                  ? 36
-                                  : 25
+                                : topicSize(n.topic).height / 2
                             }
                             onCommit={(x, y) => setPosition(n.topic.id, x, y)}
                           />
@@ -1887,6 +1968,7 @@ export default function MindmapView({
                               <svg
                                 className="mm-decision-shape"
                                 viewBox="0 0 168 72"
+                                preserveAspectRatio="none"
                                 aria-hidden="true"
                               >
                                 <polygon
@@ -1940,7 +2022,9 @@ export default function MindmapView({
                         ●
                       </button>
                       {editingId === n.topic.id ? (
-                        <input
+                        <textarea
+                          rows={1}
+                          placeholder="주제 입력"
                           className="mm-inline-title"
                           aria-label="노드 이름"
                           autoFocus
@@ -1955,7 +2039,10 @@ export default function MindmapView({
                           onKeyDown={(e) => {
                             e.stopPropagation();
                             if (e.nativeEvent.isComposing) return;
-                            if (e.key === "Enter" || e.key === "Tab") {
+                            if (
+                              (e.key === "Enter" && !e.shiftKey) ||
+                              e.key === "Tab"
+                            ) {
                               e.preventDefault();
                               add(e.key === "Enter");
                             } else if (e.key === "Escape") setEditingId("");
@@ -1964,6 +2051,14 @@ export default function MindmapView({
                       ) : (
                         <button
                           className="mm-topic"
+                          style={
+                            current.mode === "graph"
+                              ? {
+                                  width: topicSize(n.topic).width,
+                                  left: -(topicSize(n.topic).width - 40) / 2,
+                                }
+                              : undefined
+                          }
                           onFocus={() => setSelected(n.topic.id)}
                           onClick={(e) =>
                             pickNode(
@@ -1977,9 +2072,23 @@ export default function MindmapView({
                           }}
                           title={n.topic.note || n.topic.title}
                         >
-                          {n.topic.title || "이름 없는 노드"}
+                          {n.topic.title || "주제 입력"}
                           {n.topic.cardId ? " ▣" : ""}
                         </button>
+                      )}
+                      {current.mode !== "graph" && (
+                        <ResizeHandle
+                          width={topicSize(n.topic).width}
+                          height={topicSize(n.topic).height}
+                          zoom={zoom}
+                          onCommit={(width, height) =>
+                            replace((m) => {
+                              const t = findTopic(m.root, n.topic.id)!;
+                              t.boxWidth = width;
+                              t.boxHeight = height;
+                            })
+                          }
+                        />
                       )}
                       {n.topic.children.length > 0 && (
                         <button

@@ -194,3 +194,30 @@ test("multiple core topics and positions left or above the original origin are v
   m.layoutPositions.mindmap.b.x = -1201;
   assert.equal(validate(m), false);
 });
+
+test("topic and memo dimensions persist and reject malformed sizes", () => {
+  const m = {
+    id: "sizes",
+    title: "크기",
+    root: { id: "a", title: "", children: [], boxWidth: 420, boxHeight: 180 },
+    floating: [
+      {
+        id: "memo",
+        text: "",
+        x: 0,
+        y: 0,
+        color: "#fff4bf",
+        width: 450,
+        height: 250,
+      },
+    ],
+  };
+  assert(validate(m));
+  for (const bad of [0, -1, "300", 901, Infinity]) {
+    m.root.boxWidth = bad;
+    assert.equal(validate(m), false);
+  }
+  m.root.boxWidth = 420;
+  m.floating[0].height = 1201;
+  assert.equal(validate(m), false);
+});

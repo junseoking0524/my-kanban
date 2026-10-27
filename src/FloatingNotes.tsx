@@ -5,6 +5,8 @@ export type FloatingNote = {
   x: number;
   y: number;
   color: string;
+  width?: number;
+  height?: number;
   title?: string;
   kind?: "summary";
   sourceIds?: string[];
@@ -70,6 +72,129 @@ export function PositionHandle({
     </button>
   );
 }
+export function ResizeHandle({
+  width,
+  height,
+  zoom,
+  centered = true,
+  onCommit,
+}: {
+  width: number;
+  height: number;
+  zoom: number;
+  centered?: boolean;
+  onCommit: (width: number, height: number) => void;
+}) {
+  const start = useRef<{
+    px: number;
+    py: number;
+    left: number;
+    top: number;
+  } | null>(null);
+  const dimensions = (x: number, y: number) => ({
+    width: Math.round(
+      Math.max(
+        120,
+        Math.min(
+          900,
+          width + ((x - start.current!.px) / zoom) * (centered ? 2 : 1),
+        ),
+      ),
+    ),
+    height: Math.round(
+      Math.max(
+        50,
+        Math.min(
+          1200,
+          height + ((y - start.current!.py) / zoom) * (centered ? 2 : 1),
+        ),
+      ),
+    ),
+  });
+  const restore = (el: HTMLElement) => {
+    el.style.width = `${width}px`;
+    el.style.height = `${height}px`;
+    el.style.minHeight = `${height}px`;
+    if (start.current) {
+      el.style.left = `${start.current.left}px`;
+      el.style.top = `${start.current.top}px`;
+    }
+  };
+  return (
+    <button
+      className="mm-resize-handle"
+      aria-label="박스 크기 조절"
+      title="드래그하여 크기 조절 · 방향키로 미세 조절"
+      onDragStart={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const el = e.currentTarget.parentElement!;
+        start.current = {
+          px: e.clientX,
+          py: e.clientY,
+          left: parseFloat(el.style.left),
+          top: parseFloat(el.style.top),
+        };
+        e.currentTarget.setPointerCapture(e.pointerId);
+      }}
+      onPointerMove={(e) => {
+        if (!start.current) return;
+        e.stopPropagation();
+        const d = dimensions(e.clientX, e.clientY),
+          el = e.currentTarget.parentElement!;
+        el.style.width = `${d.width}px`;
+        el.style.height = `${d.height}px`;
+        el.style.minHeight = `${d.height}px`;
+        if (centered) {
+          el.style.left = `${start.current.left - (d.width - width) / 2}px`;
+          el.style.top = `${start.current.top - (d.height - height) / 2}px`;
+        }
+      }}
+      onPointerUp={(e) => {
+        if (!start.current) return;
+        e.stopPropagation();
+        const d = dimensions(e.clientX, e.clientY);
+        restore(e.currentTarget.parentElement!);
+        start.current = null;
+        e.currentTarget.releasePointerCapture(e.pointerId);
+        onCommit(d.width, d.height);
+      }}
+      onPointerCancel={(e) => {
+        restore(e.currentTarget.parentElement!);
+        start.current = null;
+      }}
+      onKeyDown={(e) => {
+        if (!e.key.startsWith("Arrow")) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onCommit(
+          Math.max(
+            120,
+            Math.min(
+              900,
+              width +
+                (e.key === "ArrowRight" ? 10 : e.key === "ArrowLeft" ? -10 : 0),
+            ),
+          ),
+          Math.max(
+            50,
+            Math.min(
+              1200,
+              height +
+                (e.key === "ArrowDown" ? 10 : e.key === "ArrowUp" ? -10 : 0),
+            ),
+          ),
+        );
+      }}
+    >
+      ◢
+    </button>
+  );
+}
 export default function FloatingNotes({
   notes,
   zoom,
@@ -88,6 +213,8 @@ export default function FloatingNotes({
           className={`mm-floating mm-node ${n.kind === "summary" ? "mm-summary-card" : ""}`}
           key={n.id}
           style={{
+            width: n.width,
+            height: n.height,
             left: n.x,
             top: n.y,
             background: n.color,
@@ -124,6 +251,13 @@ export default function FloatingNotes({
               근거 노드 {n.sourceIds?.length || 0}개 · 내용 스냅샷
             </small>
           )}
+          <ResizeHandle
+            width={n.width || (n.kind === "summary" ? 330 : 250)}
+            height={n.height || (n.kind === "summary" ? 330 : 180)}
+            zoom={zoom}
+            centered={false}
+            onCommit={(width, height) => onChange(n.id, { width, height })}
+          />
           <select
             aria-label="독립 메모 색상"
             value={n.color}
