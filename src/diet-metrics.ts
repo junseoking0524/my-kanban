@@ -1,0 +1,7 @@
+import {emptyDay,totals,offsetDate} from './nutrition-data.ts';
+import type {State} from './nutrition-data.ts';
+export function bmrAt(state:State,date:string){return [...(state.settings.bmrHistory??[])].filter(x=>x.month<=date.slice(0,7)).sort((a,b)=>b.month.localeCompare(a.month))[0];}
+export function balance(state:State,date:string){const d=state.days[date]??emptyDay(),n=totals(d),b=bmrAt(state,date);return b&&d.activityCalories!==undefined&&d.dietComplete&&!n.unknown&&!n.unknownMacros?b.kcal+d.activityCalories-n.kcal:null;}
+export function macroRatio(p:number,c:number,f:number){const sum=p*4+c*4+f*9;return sum>0?[p*4/sum*100,c*4/sum*100,f*9/sum*100]:[0,0,0];}
+export function dayStatus(state:State,date:string){const d=state.days[date];if(!d)return 'empty';const n=totals(d);if(!d.dietComplete||n.unknown||n.unknownMacros)return 'partial';const s=state.settings;if(!s.calories||!s.protein||!s.water)return 'partial';return n.kcal>=s.calories*.9&&n.kcal<=s.calories*1.1&&n.protein>=s.protein&&d.water>=s.water&&d.exercise!=='미기록'?'goal':'recorded';}
+export function weightSeries(state:State,date:string,weekly=false){const dates=Array.from({length:28},(_,i)=>offsetDate(date,i-27));if(!weekly)return dates.map(date=>({date,value:state.days[date]?.morning??null}));return Array.from({length:4},(_,i)=>{const span=dates.slice(i*7,i*7+7),values=span.map(x=>state.days[x]?.morning).filter((x):x is number=>x!==undefined);return {date:span[0],value:values.length?values.reduce((a,b)=>a+b,0)/values.length:null};});}
