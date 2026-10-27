@@ -1080,6 +1080,7 @@
   padding: 6px 10px;
 }
 .mm-compactbar button:hover {
+  color: #28382f;
   background: #f1f4f2;
   border-color: #d7dfda;
 }
