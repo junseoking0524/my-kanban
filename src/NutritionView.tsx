@@ -16,7 +16,7 @@ export default function NutritionView() {
  const [message,setMessage]=useState(boot.error),[date,setDate]=useState(today),[tab,setTab]=useState(new URLSearchParams(location.search).get('tab')||'설정·백업'),[meal,setMeal]=useState('저녁'),[token,setToken]=useState(''),[busy,setBusy]=useState(false),[planText,setPlanText]=useState(''),[week,setWeek]=useState(today),[draft,setDraft]=useState<Record<string,Food[]>|null>(null);
  const [custom,setCustom]=useState({name:'',portion:'1인분',kcal:'',protein:'',carbs:'',fat:''});
  const day=state.days[date]??emptyDay(), t=totals(day), settings=state.settings;
- function save(next:State,restoring=false) {if(locked&&!restoring)return;try {localStorage.setItem(KEY,JSON.stringify(next));setState(next);setLocked(false);setMessage('이 기기에 저장됨 · 서버 전송 상태는 기기 연결 영역에서 확인하세요.');}catch{setMessage('저장 공간 부족 또는 브라우저 저장 차단으로 저장하지 못했습니다. JSON 백업 후 다시 시도해주세요.');}}
+ function save(next:State,restoring=false) {if(locked&&!restoring)return false;try {localStorage.setItem(KEY,JSON.stringify(next));setState(next);setLocked(false);setMessage('이 기기에 저장됨 · 서버 전송 상태는 기기 연결 영역에서 확인하세요.');return true;}catch{setMessage('저장 공간 부족 또는 브라우저 저장 차단으로 저장하지 못했습니다. JSON 백업 후 다시 시도해주세요.');return false;}}
  function patch(p:Partial<Day>,target=date) {save({...state,days:{...state.days,[target]:{...(state.days[target]??emptyDay()),...p}}});}
  function configure(p:Partial<State['settings']>) {save({...state,settings:{...settings,...p}});}
  function add(food:Food,kind=meal,amount=1) {patch({meals:[...day.meals,{...food,id:crypto.randomUUID(),meal:kind,amount}]});}
