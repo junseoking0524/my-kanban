@@ -4,7 +4,7 @@ import {emptyDay,offsetDate} from './nutrition-data';
 import {parts,monday,trainingWeeks,trainingAdvice} from './training-metrics';
 export default function TrainingOverview({state,date,onDate,save}:{state:State;date:string;onDate?:(date:string)=>void;save?:(s:State)=>void}){
  const todayDate=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul'}).format(new Date());
- const [span,setSpan]=useState(4),[anchor,setAnchor]=useState(todayDate);const weeks=trainingWeeks(state,anchor,span),advice=trainingAdvice(state,date),d=state.days[date]??emptyDay();
+ const [span,setSpan]=useState(4),[anchor,setAnchor]=useState(todayDate);const weeks=trainingWeeks(state,anchor,span,todayDate),advice=trainingAdvice(state,date),d=state.days[date]??emptyDay();
  const patch=(p:Partial<typeof d>)=>save?.({...state,days:{...state.days,[date]:{...d,...p}}});
  const current=weeks[weeks.length-1],prev=weeks[weeks.length-2];
  return <div className="training-overview"><section className="nt-card"><div className="dq-between"><div><span className="nt-eyebrow">SHOW UP, EVERY WEEK</span><h3>체중과 운동 · {span}주 한눈에</h3></div><div className="nt-buttons">{[2,4].map(n=><button key={n} aria-pressed={span===n} onClick={()=>setSpan(n)}>{n}주</button>)}</div></div>

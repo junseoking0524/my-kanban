@@ -28,12 +28,12 @@ export function activityStatus(d?:Day){
  return 'missing';
 }
 export function monday(date:string){const day=new Date(date+'T12:00:00Z').getUTCDay();return offsetDate(date,-((day+6)%7));}
-export function trainingWeeks(state:State,anchor:string,weeks=4){
+export function trainingWeeks(state:State,anchor:string,weeks=4,asOf=anchor){
  const start=offsetDate(monday(anchor),-7*(weeks-1));
  return Array.from({length:weeks},(_,week)=>{
-  const days=Array.from({length:7},(_,i)=>{const date=offsetDate(start,week*7+i),d=state.days[date];return {date,weight:d?.morning,status:date>anchor?'future':activityStatus(d),training:trainingSummary(d)};});
-  const weights=days.filter(d=>d.date<=anchor&&d.weight!==undefined).map(d=>d.weight!);
-  return {start:days[0].date,days,mean:weights.length?weights.reduce((a,b)=>a+b,0)/weights.length:null,weightDays:weights.length,done:days.filter(d=>d.status==='done').length,rest:days.filter(d=>d.status==='rest').length,sets:days.filter(d=>d.date<=anchor).reduce((a,b)=>a+b.training.sets,0)};
+  const days=Array.from({length:7},(_,i)=>{const date=offsetDate(start,week*7+i),d=state.days[date];return {date,weight:d?.morning,status:date>asOf?'future':activityStatus(d),training:trainingSummary(d)};});
+  const weights=days.filter(d=>d.date<=asOf&&d.weight!==undefined).map(d=>d.weight!);
+  return {start:days[0].date,days,mean:weights.length?weights.reduce((a,b)=>a+b,0)/weights.length:null,weightDays:weights.length,done:days.filter(d=>d.status==='done').length,rest:days.filter(d=>d.status==='rest').length,sets:days.filter(d=>d.date<=asOf).reduce((a,b)=>a+b.training.sets,0)};
  });
 }
 export function recentTraining(state:State,date:string){
