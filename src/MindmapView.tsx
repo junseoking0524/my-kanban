@@ -216,7 +216,7 @@ export default function MindmapView({
     [focus, setFocus] = useState(
       () => new URLSearchParams(location.search).get("focus") === "1",
     ),
-    [toolsVisible, setToolsVisible] = useState(true),
+    [toolsVisible, setToolsVisible] = useState(false),
     [panelVisible, setPanelVisible] = useState(false),
     [connectTo, setConnectTo] = useState(""),
     [connectionLabel, setConnectionLabel] = useState(""),
@@ -225,6 +225,9 @@ export default function MindmapView({
     [picked, setPicked] = useState<string[]>([]),
     [selectMode, setSelectMode] = useState(true),
     [advanced, setAdvanced] = useState(false),
+    [pasteOpen, setPasteOpen] = useState(false),
+    [pasteText, setPasteText] = useState(""),
+    [clipboardMessage, setClipboardMessage] = useState(""),
     [linkDraft, setLinkDraft] = useState<{
       from: string;
       x: number;
@@ -551,7 +554,7 @@ export default function MindmapView({
     }
   };
   const replace = (fn: (m: MindMap) => void, record = true) => {
-    if (!current) return;
+    if (!current) return false;
     const copy = structuredClone(current);
     if (record) {
       const h = history.current[current.id] || { past: [], future: [] };
@@ -565,9 +568,10 @@ export default function MindmapView({
     copy.dirty = true;
     if (!validateMap(copy)) {
       setError("최대 2,000개 주제, 50단계, 800KB까지 저장할 수 있습니다.");
-      return;
+      return false;
     }
     setMaps((p) => p.map((m) => (m.id === copy.id ? copy : m)));
+    return true;
   };
   const edit = (fn: (t: Topic) => void) => {
     if (topic)
@@ -951,6 +955,60 @@ export default function MindmapView({
       alert("내보내기 실패: " + (e as Error).message);
     }
   };
+  const plainText = () => {
+    if (!current || !topic) return "";
+    const ids = new Set(picked.length ? picked : [topic.id]);
+    const lines: string[] = [];
+    const visit = (t: Topic) => {
+      if (ids.has(t.id)) lines.push(t.title, ...(t.note ? [t.note] : []));
+      t.children.forEach(visit);
+    };
+    visit(current.root);
+    return lines.join("\n");
+  };
+  const pasteTopics = (text: string) => {
+    if (!topic || !text.trim()) return;
+    const lines = text
+      .replace(/\r\n?/g, "\n")
+      .split("\n")
+      .filter((line) => line.trim());
+    if (lines.length > 2000 || text.length > 200000) {
+      setClipboardMessage("한 번에 2,000줄, 200,000자 이하로 붙여넣어 주세요.");
+      return;
+    }
+    const roots: Topic[] = [];
+    const stack: { indent: number; node: Topic }[] = [];
+    for (const line of lines) {
+      const indent =
+        line.match(/^[ \t]*/)?.[0].replace(/\t/g, "    ").length || 0;
+      const n = newTopic();
+      n.title = line.trim();
+      while (stack.length && stack[stack.length - 1].indent >= indent)
+        stack.pop();
+      if (stack.length) stack[stack.length - 1].node.children.push(n);
+      else roots.push(n);
+      stack.push({ indent, node: n });
+    }
+    const added = replace((m) => {
+      const dest = findTopic(m.root, topic.id);
+      if (dest) {
+        dest.collapsed = false;
+        dest.children.push(...roots);
+      }
+    });
+    if (!added) return;
+    setPasteOpen(false);
+    setPasteText("");
+    setClipboardMessage(`${lines.length}개 주제를 붙여넣었습니다.`);
+  };
+  const copyText = async () => {
+    try {
+      await navigator.clipboard.writeText(plainText());
+      setClipboardMessage("일반 텍스트로 복사했습니다.");
+    } catch {
+      setClipboardMessage("노드를 선택하고 Ctrl/Cmd+C로 복사해 주세요.");
+    }
+  };
   const linked = topic?.cardId
     ? cards.find((c) => c.id === topic.cardId && c.boardId === topic.boardId)
     : undefined;
@@ -959,6 +1017,23 @@ export default function MindmapView({
       ref={sectionRef}
       className={`mm ${focus ? "mm-focus" : ""} ${!toolsVisible ? "mm-tools-hidden" : ""} ${current?.mode === "graph" ? "mm-galaxy" : "mm-logic-studio"}`}
       aria-label="마인드맵 편집기"
+      onCopy={(e) => {
+        const target = e.target as HTMLElement;
+        if (target.closest("input,textarea,[contenteditable=true]")) return;
+        if (window.getSelection()?.toString()) return;
+        if (!plainText()) return;
+        e.preventDefault();
+        e.clipboardData.setData("text/plain", plainText());
+        setClipboardMessage("일반 텍스트로 복사했습니다.");
+      }}
+      onPaste={(e) => {
+        const target = e.target as HTMLElement;
+        if (target.closest("input,textarea,[contenteditable=true]")) return;
+        const text = e.clipboardData.getData("text/plain");
+        if (!text.trim()) return;
+        e.preventDefault();
+        pasteTopics(text);
+      }}
       onKeyDown={(e) => {
         const el = e.target as HTMLElement;
         if (el.matches("input,textarea,select") || e.nativeEvent.isComposing)
@@ -988,21 +1063,84 @@ export default function MindmapView({
         }
       }}
     >
-      {focus && (
-        <div className="mm-focusbar">
-          <strong>{current?.title || "마인드맵 작업실"}</strong>
-          <span>집중 작업실</span>
-          <button onClick={() => setToolsVisible((v) => !v)}>
-            {toolsVisible ? "도구 접기" : "도구 펼치기"}
+      <div className="mm-focusbar mm-compactbar">
+        <strong>{current?.title || "마인드맵 작업실"}</strong>
+        <span className="mm-save" role="status">
+          {!ready
+            ? "불러오는 중…"
+            : error
+              ? "클라우드 저장 중단"
+              : busy
+                ? "처리 중…"
+                : maps.some((m) => m.dirty)
+                  ? "저장 대기…"
+                  : "클라우드 저장 완료"}
+        </span>
+        <button
+          aria-expanded={toolsVisible}
+          aria-controls="mm-top-tools"
+          onClick={() => setToolsVisible((v) => !v)}
+        >
+          {toolsVisible ? "도구 접기" : "도구 펼치기"}{" "}
+          {toolsVisible ? "⌃" : "⌄"}
+        </button>
+        <button onClick={() => add()}>＋ 주제</button>
+        <button onClick={copyText} disabled={!topic}>
+          텍스트 복사
+        </button>
+        <button onClick={() => setPasteOpen(true)} disabled={!topic}>
+          텍스트 붙여넣기
+        </button>
+        <button aria-label="캔버스 맞추기" onClick={fit}>
+          ⊡
+        </button>
+        {focus && (
+          <>
+            <button onClick={() => setPanelVisible((v) => !v)}>
+              {panelVisible ? "패널 숨기기" : "패널 열기"}
+            </button>
+            <button onClick={fullScreen}>전체 화면</button>
+            <button onClick={exitFocus}>집중 종료</button>
+          </>
+        )}
+      </div>
+      {clipboardMessage && (
+        <div className="mm-clipboard-message" aria-live="polite">
+          {clipboardMessage}
+          <button
+            aria-label="알림 닫기"
+            onClick={() => setClipboardMessage("")}
+          >
+            ×
           </button>
-          <button onClick={() => setPanelVisible((v) => !v)}>
-            {panelVisible ? "패널 숨기기" : "패널 열기"}
-          </button>
-          <button onClick={fullScreen}>전체 화면</button>
-          <button onClick={exitFocus}>집중 종료</button>
         </div>
       )}
-      <div className="mm-toolbar">
+      {pasteOpen && (
+        <div
+          className="mm-paste-panel"
+          role="dialog"
+          aria-label="텍스트 붙여넣기"
+        >
+          <label htmlFor="mm-paste-text">
+            줄마다 새 주제 · 들여쓰기는 하위 주제로 추가됩니다
+          </label>
+          <textarea
+            id="mm-paste-text"
+            autoFocus
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+            placeholder="선택한 주제 아래에 텍스트를 붙여넣으세요"
+          />
+          <button
+            onClick={() => pasteTopics(pasteText)}
+            disabled={!pasteText.trim()}
+          >
+            주제로 추가
+          </button>
+          <button onClick={() => setPasteOpen(false)}>취소</button>
+        </div>
+      )}
+      <div className="mm-toolbar" id="mm-top-tools">
         <select
           aria-label="마인드맵 선택"
           value={current?.id || ""}
@@ -1073,17 +1211,6 @@ export default function MindmapView({
         >
           전체 백업
         </button>
-        <span className="mm-save" role="status">
-          {!ready
-            ? "불러오는 중…"
-            : error
-              ? "클라우드 저장 중단"
-              : busy
-                ? "처리 중…"
-                : maps.some((m) => m.dirty)
-                  ? "저장 대기…"
-                  : "클라우드 저장 완료"}
-        </span>
       </div>
       {(error || localError) && (
         <div className="mm-error" role="alert">
@@ -1272,7 +1399,7 @@ export default function MindmapView({
               </button>
             </div>
           </div>
-          {advanced && (
+          {advanced && toolsVisible && (
             <div className="mm-node-options">
               <label>
                 선택 노드 이름

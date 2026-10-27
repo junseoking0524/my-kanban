@@ -1056,3 +1056,88 @@
   background: #293e35;
   color: #fff;
 }
+
+/* Compact document bar: the ribbon starts collapsed in every workspace. */
+.mm-compactbar {
+  background: #fff;
+  color: #28382f;
+  padding: 8px 14px;
+  border-bottom: 1px solid #e5e7eb;
+  gap: 6px;
+}
+.mm-compactbar strong {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 38%;
+}
+.mm-compactbar button {
+  background: transparent;
+  color: #46524b;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 6px 10px;
+}
+.mm-compactbar button:hover {
+  background: #f1f4f2;
+  border-color: #d7dfda;
+}
+.mm-clipboard-message {
+  padding: 6px 14px;
+  font-size: 12px;
+  background: #edf5ee;
+  color: #304e36;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.mm-clipboard-message button {
+  margin-left: auto;
+}
+.mm-paste-panel {
+  padding: 14px;
+  background: #fff;
+  border-bottom: 1px solid #d8dedb;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mm-paste-panel label,
+.mm-paste-panel textarea {
+  width: 100%;
+}
+.mm-paste-panel textarea {
+  min-height: 130px;
+  padding: 12px;
+  border: 1px solid #cbd5cf;
+  border-radius: 8px;
+  resize: vertical;
+}
+.mm-galaxy .mm-compactbar,
+.mm-galaxy .mm-paste-panel {
+  background: #171b2c;
+  color: #e4e7f5;
+}
+.mm-galaxy .mm-compactbar button {
+  color: #e4e7f5;
+}
+@media (max-width: 600px) {
+  .mm-compactbar {
+    gap: 2px;
+    padding: 6px;
+  }
+  .mm-compactbar button {
+    padding: 5px;
+    font-size: 11px;
+  }
+  .mm-compactbar strong {
+    max-width: 24%;
+  }
+}
+.mm-compactbar .mm-save {
+  display: block;
+  width: auto;
+  margin-left: 0;
+  font-size: 10px;
+}

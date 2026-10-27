@@ -44,6 +44,8 @@ const assert = require("node:assert/strict");
   });
   page.setDefaultTimeout(12000);
   await page.goto("http://127.0.0.1:5173/?view=mindmap&focus=1");
+  assert.equal(await page.locator(".mm-toolbar").isVisible(), false);
+  await page.getByRole("button", { name: /도구 펼치기/ }).click();
   await page.getByLabel("정리 방식", { exact: true }).waitFor();
   const node = (text) => page.locator(".mm-topic").filter({ hasText: text });
   const rename = async (name) => {
@@ -199,6 +201,8 @@ const assert = require("node:assert/strict");
   assert.equal(Object.keys(cloud[0].layoutPositions.graph).length, 4);
 
   await page.reload();
+  assert.equal(await page.locator(".mm-toolbar").isVisible(), false);
+  await page.getByRole("button", { name: /도구 펼치기/ }).click();
   await page.getByLabel("정리 방식", { exact: true }).waitFor();
   assert.equal(
     await page.getByLabel("정리 방식", { exact: true }).inputValue(),
@@ -393,6 +397,8 @@ const assert = require("node:assert/strict");
     .filter({ hasText: "시험용 저장 실패" })
     .waitFor();
   await page.reload();
+  assert.equal(await page.locator(".mm-toolbar").isVisible(), false);
+  await page.getByRole("button", { name: /도구 펼치기/ }).click();
   await page.getByLabel("정리 방식", { exact: true }).waitFor();
   assert.equal(await node("플랫폼 성장 계획").count(), 1);
   fail = false;
@@ -409,14 +415,57 @@ const assert = require("node:assert/strict");
       .getByRole("button", { name: "패널 숨기기", exact: true })
       .click();
   assert.equal(await page.locator(".mm-inspector").isVisible(), false);
-  await page.getByRole("button", { name: "도구 접기", exact: true }).click();
+  await page.getByRole("button", { name: /도구 접기/ }).click();
   assert.equal(await page.locator(".mm-toolbar").isVisible(), false);
+  await page.screenshot({ path: "/tmp/mindmap-compact-studio.png" });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(120);
   assert.equal(
     Math.round((await page.locator(".mm-focus").boundingBox()).width),
     390,
   );
+  // Plain text clipboard works with the ribbon closed; indentation creates children.
+  await page.locator(".mm-topic").first().focus();
+  const beforePaste = await page.locator(".mm-topic").count();
+  await page
+    .locator(".mm-topic")
+    .first()
+    .evaluate((el) => {
+      const data = new DataTransfer();
+      data.setData("text/plain", "붙여넣은 주제\n    하위 텍스트\n둘째 주제");
+      el.dispatchEvent(
+        new ClipboardEvent("paste", {
+          bubbles: true,
+          cancelable: true,
+          clipboardData: data,
+        }),
+      );
+    });
+  assert.equal(await page.locator(".mm-topic").count(), beforePaste + 3);
+  await save();
+  const serialized = JSON.stringify(cloud);
+  assert.ok(serialized.includes("붙여넣은 주제"));
+  await node("붙여넣은 주제").focus();
+  const copied = await node("붙여넣은 주제").evaluate((el) => {
+    const data = new DataTransfer();
+    el.dispatchEvent(
+      new ClipboardEvent("copy", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData: data,
+      }),
+    );
+    return { text: data.getData("text/plain"), types: [...data.types] };
+  });
+  assert.equal(copied.text, "붙여넣은 주제");
+  assert.deepEqual(copied.types, ["text/plain"]);
+  await page
+    .getByRole("button", { name: "텍스트 붙여넣기", exact: true })
+    .click();
+  await page.locator("#mm-paste-text").fill("대화상자 텍스트");
+  await page.getByRole("button", { name: "주제로 추가", exact: true }).click();
+  assert.equal(await node("대화상자 텍스트").count(), 1);
+  assert.equal(await page.locator(".mm-toolbar").isVisible(), false);
   assert.deepEqual(errors, []);
   console.log(
     JSON.stringify({
