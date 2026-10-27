@@ -1,3 +1,4 @@
+import ContentPlanning from "./ContentPlanning";
 import MindmapView from "./MindmapView";
 import NutritionDashboard from "./NutritionDashboard";
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -1153,6 +1154,7 @@ function PlanningView({onAddTasks,isMobile}:{
 
   return (
     <div>
+      <ContentPlanning/>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
         <button onClick={()=>setView(v=>v.m===0?{y:v.y-1,m:11}:{y:v.y,m:v.m-1})}
           style={{fontSize:18,color:"var(--text-sub)",padding:"2px 8px",borderRadius:4,lineHeight:1}}>‹</button>
