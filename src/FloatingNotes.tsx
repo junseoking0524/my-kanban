@@ -43,8 +43,8 @@ export function PositionHandle({
         if (!s) return;
         e.stopPropagation();
         const el = e.currentTarget.parentElement!;
-        el.style.left = `${Math.max(110, Math.min(19000, s.x + (e.clientX - s.px) / zoom)) - offsetX}px`;
-        el.style.top = `${Math.max(80, Math.min(19000, s.y + (e.clientY - s.py) / zoom)) - offsetY}px`;
+        el.style.left = `${Math.max(-1000, Math.min(19000, s.x + (e.clientX - s.px) / zoom)) - offsetX}px`;
+        el.style.top = `${Math.max(-1000, Math.min(19000, s.y + (e.clientY - s.py) / zoom)) - offsetY}px`;
       }}
       onPointerUp={(e) => {
         const s = start.current;
@@ -53,8 +53,8 @@ export function PositionHandle({
         e.stopPropagation();
         e.currentTarget.releasePointerCapture(e.pointerId);
         onCommit(
-          Math.max(110, Math.min(19000, s.x + (e.clientX - s.px) / zoom)),
-          Math.max(80, Math.min(19000, s.y + (e.clientY - s.py) / zoom)),
+          Math.max(-1000, Math.min(19000, s.x + (e.clientX - s.px) / zoom)),
+          Math.max(-1000, Math.min(19000, s.y + (e.clientY - s.py) / zoom)),
         );
       }}
       onPointerCancel={(e) => {

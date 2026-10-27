@@ -42,7 +42,7 @@ export function summaryDraft(map: MindMap, ids: string[]) {
   const relations: string[] = [];
   const rel = (t: Topic) => {
     for (const c of t.children) {
-      if (selected.has(t.id) && selected.has(c.id))
+      if (!c.independent && selected.has(t.id) && selected.has(c.id))
         relations.push(
           `${t.title} → ${c.title}${c.edgeLabel ? " (" + c.edgeLabel + ")" : ""}`,
         );

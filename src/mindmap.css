@@ -964,3 +964,95 @@
 .mm-logic-studio .mm-node:not(.mm-floating) {
   box-shadow: 0 2px 9px #23372d08;
 }
+
+/* Spacious, origin-independent canvas and compact library */
+.mm-inspector {
+  width: 220px;
+  padding: 10px;
+}
+.mm-panel-rail {
+  flex: 0 0 34px;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 14px 4px !important;
+  border: 0 !important;
+  border-left: 1px solid #e1e3e8 !important;
+  border-radius: 0 !important;
+  background: #f8f9fc !important;
+  color: #65718c !important;
+  font-size: 12px !important;
+}
+.mm-panel-rail span {
+  writing-mode: vertical-rl;
+  letter-spacing: 0.15em;
+  font-size: 10px;
+}
+.mm-panel-collapse {
+  width: 100%;
+  margin-bottom: 12px;
+  font-size: 10px !important;
+}
+.mm-canvas.is-selecting:not(.is-panning) {
+  cursor: crosshair;
+}
+.mm-lines {
+  overflow: visible;
+}
+.mm-core-topic {
+  border-width: 2.5px;
+  box-shadow: 0 0 0 3px #cba95b26 !important;
+}
+.mm-core-badge {
+  position: absolute;
+  top: -16px;
+  right: 6px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #b48b38;
+  color: #fff;
+  font-size: 8px;
+  line-height: 13px;
+  font-weight: 700;
+  pointer-events: none;
+  z-index: 2;
+}
+.mm-galaxy .mm-core-topic {
+  box-shadow: 0 0 35px #d0b16a66 !important;
+}
+.mm-galaxy .mm-panel-rail {
+  background: #191b27 !important;
+  border-color: #303242 !important;
+  color: #aba2c8 !important;
+}
+.mm-galaxy .mm-core-badge {
+  top: -19px;
+  right: -10px;
+  background: #7e65b0;
+}
+@media (max-width: 800px) {
+  .mm-inspector {
+    width: 100%;
+  }
+  .mm-panel-rail {
+    flex: 0 0 30px;
+    align-self: stretch;
+    flex-direction: row;
+    justify-content: center;
+    padding: 5px !important;
+    gap: 8px;
+  }
+  .mm-panel-rail span {
+    writing-mode: horizontal-tb;
+  }
+  .mm-focus .mm-panel-rail {
+    min-height: 30px;
+  }
+}
+.mm-logic-studio .mm-node.mm-root:not(.mm-floating):not(.mm-decision) {
+  background: #293e35;
+  color: #fff;
+}

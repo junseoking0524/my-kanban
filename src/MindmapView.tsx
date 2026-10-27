@@ -21,6 +21,7 @@ type Props = {
   onCreateCard: (title: string, note: string) => Promise<CardRef>;
   onOpenCard: (card: CardRef) => void;
 };
+const CANVAS_PAD = 1200;
 const KEY = "kanban.mindmaps.v1";
 const ACTIVE_KEY = "kanban.mindmaps.active.v1";
 function storedActive() {
@@ -145,7 +146,22 @@ function MapLibrary({
                       {m.dirty ? " •" : ""}
                     </button>
                   </div>
-                  {active === m.id && !folded.has(m.id) && branch(m.root, m.id)}
+                  {active === m.id && !folded.has(m.id) && (
+                    <>
+                      {branch(
+                        {
+                          ...m.root,
+                          children: m.root.children.filter(
+                            (t) => !t.independent,
+                          ),
+                        },
+                        m.id,
+                      )}
+                      {m.root.children
+                        .filter((t) => t.independent)
+                        .map((t) => branch(t, m.id))}
+                    </>
+                  )}
                 </div>
               ))}
             </details>
@@ -201,13 +217,13 @@ export default function MindmapView({
       () => new URLSearchParams(location.search).get("focus") === "1",
     ),
     [toolsVisible, setToolsVisible] = useState(true),
-    [panelVisible, setPanelVisible] = useState(true),
+    [panelVisible, setPanelVisible] = useState(false),
     [connectTo, setConnectTo] = useState(""),
     [connectionLabel, setConnectionLabel] = useState(""),
     [editingId, setEditingId] = useState(""),
     [selectedEdge, setSelectedEdge] = useState(""),
     [picked, setPicked] = useState<string[]>([]),
-    [selectMode, setSelectMode] = useState(false),
+    [selectMode, setSelectMode] = useState(true),
     [advanced, setAdvanced] = useState(false),
     [linkDraft, setLinkDraft] = useState<{
       from: string;
@@ -225,6 +241,7 @@ export default function MindmapView({
       text: string;
       sourceIds: string[];
     } | null>(null);
+  const spaceHeld = useRef(false);
   const marquee = useRef<{ x: number; y: number } | null>(null);
   const sectionRef = useRef<HTMLElement>(null);
   const current = maps.find((m) => m.id === active) || maps[0],
@@ -241,6 +258,34 @@ export default function MindmapView({
     inflight = useRef(false),
     alive = useRef(true),
     drag = useRef("");
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement;
+      if (
+        e.code === "Space" &&
+        (sectionRef.current?.contains(el) || el === document.body) &&
+        !el.matches("input,textarea,select") &&
+        !el.isContentEditable
+      ) {
+        spaceHeld.current = true;
+        e.preventDefault();
+      }
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.code === "Space") spaceHeld.current = false;
+    };
+    const blur = () => {
+      spaceHeld.current = false;
+    };
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", blur);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", blur);
+    };
+  }, []);
   useEffect(() => {
     if (active) {
       try {
@@ -354,8 +399,14 @@ export default function MindmapView({
       if (!model) return;
       const n =
         model.nodes.find((n) => n.topic.id === selected) || model.nodes[0];
-      el.scrollLeft = Math.max(0, n.x * zoom - el.clientWidth / 2);
-      el.scrollTop = Math.max(0, n.y * zoom - el.clientHeight / 2);
+      el.scrollLeft = Math.max(
+        0,
+        (n.x + CANVAS_PAD) * zoom - el.clientWidth / 2,
+      );
+      el.scrollTop = Math.max(
+        0,
+        (n.y + CANVAS_PAD) * zoom - el.clientHeight / 2,
+      );
     };
     reveal();
     const observer = new ResizeObserver(reveal);
@@ -438,9 +489,9 @@ export default function MindmapView({
     setZoom(z);
     requestAnimationFrame(() =>
       el.scrollTo({
-        left: ((minX + maxX) / 2) * z - el.clientWidth / 2,
-        top: ((minY + maxY) / 2) * z - el.clientHeight / 2,
-        behavior: "smooth",
+        left: ((minX + maxX) / 2 + CANVAS_PAD) * z - el.clientWidth / 2,
+        top: ((minY + maxY) / 2 + CANVAS_PAD) * z - el.clientHeight / 2,
+        behavior: "auto",
       }),
     );
   };
@@ -459,9 +510,9 @@ export default function MindmapView({
           el = frame.current;
         if (node && el)
           el.scrollTo({
-            left: node.x * zoom - el.clientWidth / 2,
-            top: node.y * zoom - el.clientHeight / 2,
-            behavior: "smooth",
+            left: (node.x + CANVAS_PAD) * zoom - el.clientWidth / 2,
+            top: (node.y + CANVAS_PAD) * zoom - el.clientHeight / 2,
+            behavior: "auto",
           });
       }),
     );
@@ -528,7 +579,17 @@ export default function MindmapView({
   const add = (sibling = false) => {
     if (!topic || !current) return;
     const n = newTopic();
+    const atRoot =
+      sibling && (topic.id === current.root.id || topic.independent);
+    if (atRoot) {
+      n.independent = true;
+      n.core = true;
+    }
     replace((m) => {
+      if (atRoot) {
+        m.root.children.push(n);
+        return;
+      }
       const dest =
         (sibling ? parentOf(m.root, topic.id) : findTopic(m.root, topic.id)) ||
         m.root;
@@ -590,9 +651,9 @@ export default function MindmapView({
     if (!model || !frame.current) return;
     setZoom(1);
     frame.current.scrollTo({
-      left: model.width / 2 - frame.current.clientWidth / 2,
-      top: model.height / 2 - frame.current.clientHeight / 2,
-      behavior: "smooth",
+      left: model.nodes[0].x + CANVAS_PAD - frame.current.clientWidth / 2,
+      top: model.nodes[0].y + CANVAS_PAD - frame.current.clientHeight / 2,
+      behavior: "auto",
     });
   };
   const addMap = () => {
@@ -611,14 +672,61 @@ export default function MindmapView({
     setActive(m.id);
     setSelected(m.root.id);
   };
+  const addCore = () => {
+    if (!current || !model || !frame.current) return;
+    let i = 2,
+      name = "핵심 주제 2";
+    while (allTopics.some((t) => t.title === name)) {
+      i++;
+      name = `핵심 주제 ${i}`;
+    }
+    const n = { ...newTopic(name), core: true, independent: true };
+    const el = frame.current;
+    let x = Math.max(
+        -1000,
+        (el.scrollLeft + el.clientWidth / 2) / zoom - CANVAS_PAD,
+      ),
+      y = Math.max(
+        -1000,
+        (el.scrollTop + el.clientHeight / 2) / zoom - CANVAS_PAD,
+      );
+    for (
+      let tries = 0;
+      tries < 20 &&
+      model.nodes.some(
+        (n) => Math.abs(n.x - x) < 190 && Math.abs(n.y - y) < 100,
+      );
+      tries++
+    ) {
+      x = Math.min(19000, x + 230);
+      y = Math.min(19000, y + 110);
+    }
+    replace((m) => {
+      m.root.children.push(n);
+      const mode = m.mode || "mindmap";
+      m.layoutPositions = {
+        ...m.layoutPositions,
+        [mode]: { ...m.layoutPositions?.[mode], [n.id]: { x, y } },
+      };
+    });
+    setSelected(n.id);
+    setPicked([n.id]);
+    setEditingId(n.id);
+  };
   const addFloating = () => {
     if (!model || !frame.current) return;
     const el = frame.current;
     const n = {
       id: uid(),
       text: "",
-      x: Math.max(110, (el.scrollLeft + el.clientWidth / 2) / zoom - 120),
-      y: Math.max(80, (el.scrollTop + el.clientHeight / 2) / zoom - 40),
+      x: Math.max(
+        -1000,
+        (el.scrollLeft + el.clientWidth / 2) / zoom - CANVAS_PAD - 120,
+      ),
+      y: Math.max(
+        -1000,
+        (el.scrollTop + el.clientHeight / 2) / zoom - CANVAS_PAD - 40,
+      ),
       color: "#fff4bf",
     };
     replace((m) => {
@@ -639,8 +747,8 @@ export default function MindmapView({
         const n = model?.nodes.find((n) => n.topic.id === target);
         if (!n || !original) continue;
         next[target] = {
-          x: Math.max(110, Math.min(19000, n.x + x - original.x)),
-          y: Math.max(80, Math.min(19000, n.y + y - original.y)),
+          x: Math.max(-1000, Math.min(19000, n.x + x - original.x)),
+          y: Math.max(-1000, Math.min(19000, n.y + y - original.y)),
         };
       }
       m.layoutPositions = { ...m.layoutPositions, [mode]: next };
@@ -651,15 +759,16 @@ export default function MindmapView({
     if (!el) return { x: 0, y: 0 };
     const r = el.getBoundingClientRect();
     return {
-      x: (x - r.left + el.scrollLeft) / zoom,
-      y: (y - r.top + el.scrollTop) / zoom,
+      x: (x - r.left + el.scrollLeft) / zoom - CANVAS_PAD,
+      y: (y - r.top + el.scrollTop) / zoom - CANVAS_PAD,
     };
   };
   const finishConnection = (from: string, to: string) => {
     if (!current || from === to || !findTopic(current.root, to)) return;
     if (
       (current.links || []).some((l) => l.from === from && l.to === to) ||
-      parentOf(current.root, to)?.id === from
+      (parentOf(current.root, to)?.id === from &&
+        !findTopic(current.root, to)?.independent)
     )
       return;
     replace((m) => {
@@ -714,7 +823,7 @@ export default function MindmapView({
       summary.sourceIds.includes(n.topic.id),
     );
     const x = Math.min(18500, Math.max(...nodes.map((n) => n.x)) + 220),
-      y = Math.max(80, Math.min(...nodes.map((n) => n.y)) - 40);
+      y = Math.max(-1000, Math.min(...nodes.map((n) => n.y)) - 40);
     replace((m) => {
       m.floating = [
         ...(m.floating || []),
@@ -742,10 +851,16 @@ export default function MindmapView({
     setPosition(
       drag.current,
       Math.max(
-        110,
-        Math.min(19000, (e.clientX - r.left + el.scrollLeft) / zoom),
+        -1000,
+        Math.min(
+          19000,
+          (e.clientX - r.left + el.scrollLeft) / zoom - CANVAS_PAD,
+        ),
       ),
-      Math.max(80, Math.min(19000, (e.clientY - r.top + el.scrollTop) / zoom)),
+      Math.max(
+        -1000,
+        Math.min(19000, (e.clientY - r.top + el.scrollTop) / zoom - CANVAS_PAD),
+      ),
     );
     drag.current = "";
   };
@@ -904,9 +1019,10 @@ export default function MindmapView({
         </select>
         <button
           onClick={() => {
+            setPanelVisible(true);
             document
               .querySelector(".mm-inspector")
-              ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+              ?.scrollIntoView({ behavior: "auto", block: "nearest" });
           }}
         >
           📁 보관함 보기
@@ -1011,6 +1127,19 @@ export default function MindmapView({
       {ready && current && model && topic && (
         <>
           <div className="mm-actions">
+            <button onClick={addCore}>＋ 핵심 주제</button>
+            <button
+              aria-pressed={topic.core ?? topic.id === current.root.id}
+              onClick={() =>
+                edit((t) => {
+                  t.core = !(t.core ?? t.id === current.root.id);
+                })
+              }
+            >
+              {(topic.core ?? topic.id === current.root.id)
+                ? "★ 강조 해제"
+                : "☆ 핵심 강조"}
+            </button>
             {selectedEdge && (
               <>
                 <button onClick={renameEdge}>연결 이름 편집</button>
@@ -1037,7 +1166,7 @@ export default function MindmapView({
                 setPicked([]);
               }}
             >
-              여러 개 선택
+              {selectMode ? "영역 선택" : "화면 이동"}
             </button>
             <button
               onClick={startSummary}
@@ -1295,37 +1424,53 @@ export default function MindmapView({
             </div>
           )}
           <div className="mm-nav-hint">
-            빈 공간 드래그로 이동 · 휠로 확대/축소 · Shift+휠로 좌우 이동 ·
-            모바일은 두 손가락으로 확대/축소
+            빈 공간 드래그 = 여러 개 선택 · Space+드래그/가운데 버튼 = 이동 · 휠
+            = 확대 · 모바일은 두 손가락으로 확대/축소
           </div>
           <div className="mm-workspace">
             <div
               ref={frame}
-              className={`mm-canvas ${panning ? "is-panning" : ""}`}
+              className={`mm-canvas ${panning ? "is-panning" : ""} ${selectMode ? "is-selecting" : ""}`}
               onPointerDown={(e) => {
                 if (e.button !== 0 && e.button !== 1) return;
                 if ((e.target as HTMLElement).closest(".mm-node")) return;
-                if (selectMode || e.shiftKey) {
+                e.currentTarget.focus({ preventScroll: true });
+                if (e.button === 1 || spaceHeld.current) e.preventDefault();
+                const touch = e.pointerType === "touch";
+                if (touch) {
+                  fingers.current.set(e.pointerId, {
+                    x: e.clientX,
+                    y: e.clientY,
+                  });
+                  if (fingers.current.size === 2) {
+                    marquee.current = null;
+                    setSelectionRect(null);
+                    const [a, b] = [...fingers.current.values()];
+                    pinch.current = {
+                      distance: Math.hypot(a.x - b.x, a.y - b.y),
+                      zoom: viewRef.current.zoom,
+                    };
+                    pan.current = null;
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                    return;
+                  }
+                }
+                if (
+                  e.button === 0 &&
+                  !spaceHeld.current &&
+                  (selectMode || e.shiftKey)
+                ) {
                   const point = worldPoint(e.clientX, e.clientY);
                   marquee.current = point;
                   setSelectionRect({ ...point, w: 0, h: 0 });
                   e.currentTarget.setPointerCapture(e.pointerId);
                   return;
                 }
-                fingers.current.set(e.pointerId, {
-                  x: e.clientX,
-                  y: e.clientY,
-                });
-                if (fingers.current.size === 2) {
-                  const [a, b] = [...fingers.current.values()];
-                  pinch.current = {
-                    distance: Math.hypot(a.x - b.x, a.y - b.y),
-                    zoom: viewRef.current.zoom,
-                  };
-                  pan.current = null;
-                  e.currentTarget.setPointerCapture(e.pointerId);
-                  return;
-                }
+                if (!touch)
+                  fingers.current.set(e.pointerId, {
+                    x: e.clientX,
+                    y: e.clientY,
+                  });
                 const el = e.currentTarget;
                 pan.current = {
                   id: e.pointerId,
@@ -1414,8 +1559,8 @@ export default function MindmapView({
             >
               <div
                 style={{
-                  width: model.width * zoom,
-                  height: model.height * zoom,
+                  width: (model.width + CANVAS_PAD * 2) * zoom,
+                  height: (model.height + CANVAS_PAD * 2) * zoom,
                   position: "relative",
                 }}
               >
@@ -1426,6 +1571,8 @@ export default function MindmapView({
                     transform: `scale(${zoom})`,
                     transformOrigin: "top left",
                     position: "absolute",
+                    left: CANVAS_PAD * zoom,
+                    top: CANVAS_PAD * zoom,
                   }}
                 >
                   <svg
@@ -1566,7 +1713,7 @@ export default function MindmapView({
                     <div
                       key={n.topic.id}
                       data-node-id={n.topic.id}
-                      className={`mm-node ${n.topic.id === topic.id ? "mm-selected" : ""} ${picked.includes(n.topic.id) ? "mm-picked" : ""} ${n.topic.id === current.root.id ? "mm-root" : ""} ${current.mode === "graph" ? "mm-graph-node" : current.mode === "flow" ? `mm-flow-node mm-${n.topic.shape || "process"}` : ""}`}
+                      className={`mm-node ${n.topic.id === topic.id ? "mm-selected" : ""} ${picked.includes(n.topic.id) ? "mm-picked" : ""} ${(n.topic.core ?? n.topic.id === current.root.id) ? "mm-core-topic" : ""} ${n.topic.id === current.root.id ? "mm-root" : ""} ${current.mode === "graph" ? "mm-graph-node" : current.mode === "flow" ? `mm-flow-node mm-${n.topic.shape || "process"}` : ""}`}
                       style={{
                         left: n.x - (current.mode === "graph" ? 20 : 84),
                         top:
@@ -1625,6 +1772,9 @@ export default function MindmapView({
                             )}
                         </>
                       }
+                      {(n.topic.core ?? n.topic.id === current.root.id) && (
+                        <span className="mm-core-badge">핵심</span>
+                      )}
                       <button
                         className="mm-connect-port"
                         aria-label={`${n.topic.title} 연결점`}
@@ -1677,23 +1827,21 @@ export default function MindmapView({
                           onBlur={() => setEditingId("")}
                           onKeyDown={(e) => {
                             e.stopPropagation();
-                            if (
-                              !e.nativeEvent.isComposing &&
-                              (e.key === "Enter" || e.key === "Escape")
-                            )
-                              setEditingId("");
+                            if (e.nativeEvent.isComposing) return;
+                            if (e.key === "Enter" || e.key === "Tab") {
+                              e.preventDefault();
+                              add(e.key === "Enter");
+                            } else if (e.key === "Escape") setEditingId("");
                           }}
                         />
                       ) : (
                         <button
                           className="mm-topic"
+                          onFocus={() => setSelected(n.topic.id)}
                           onClick={(e) =>
                             pickNode(
                               n.topic.id,
-                              e.shiftKey ||
-                                e.ctrlKey ||
-                                e.metaKey ||
-                                selectMode,
+                              e.shiftKey || e.ctrlKey || e.metaKey,
                             )
                           }
                           onDoubleClick={() => {
@@ -1743,7 +1891,22 @@ export default function MindmapView({
                 </div>
               </div>
             </div>
+            {!panelVisible && (
+              <button
+                className="mm-panel-rail"
+                aria-label="보관함 펼치기"
+                onClick={() => setPanelVisible(true)}
+              >
+                📁<span>보관함</span>
+              </button>
+            )}
             <aside className="mm-inspector" hidden={!panelVisible}>
+              <button
+                className="mm-panel-collapse"
+                onClick={() => setPanelVisible(false)}
+              >
+                보관함 접기 →
+              </button>
               <MapLibrary
                 maps={maps}
                 active={current.id}

@@ -10,6 +10,8 @@ export type Topic = {
   children: Topic[];
   shape?: "process" | "decision" | "terminal";
   edgeLabel?: string;
+  core?: boolean;
+  independent?: boolean;
   cardId?: string;
   boardId?: string;
 };
@@ -82,6 +84,8 @@ export function validateMap(value: unknown): value is MindMap {
       ids.has(t.id) ||
       typeof t.title !== "string" ||
       !Array.isArray(t.children) ||
+      (t.core !== undefined && typeof t.core !== "boolean") ||
+      (t.independent !== undefined && typeof t.independent !== "boolean") ||
       depth > 50 ||
       ++count > 2000
     )
@@ -117,8 +121,8 @@ export function validateMap(value: unknown): value is MindMap {
                 n.sourceIds.every((id) => typeof id === "string"))) &&
             Number.isFinite(n.x) &&
             Number.isFinite(n.y) &&
-            n.x >= 0 &&
-            n.y >= 0 &&
+            n.x >= -1000 &&
+            n.y >= -1000 &&
             n.x <= 20000 &&
             n.y <= 20000,
         ))) &&
@@ -129,8 +133,8 @@ export function validateMap(value: unknown): value is MindMap {
             p &&
             Number.isFinite(p.x) &&
             Number.isFinite(p.y) &&
-            p.x >= 0 &&
-            p.y >= 0 &&
+            p.x >= -1000 &&
+            p.y >= -1000 &&
             p.x <= 20000 &&
             p.y <= 20000,
         ))) &&
@@ -145,8 +149,8 @@ export function validateMap(value: unknown): value is MindMap {
                 p &&
                 Number.isFinite(p.x) &&
                 Number.isFinite(p.y) &&
-                p.x >= 0 &&
-                p.y >= 0 &&
+                p.x >= -1000 &&
+                p.y >= -1000 &&
                 p.x <= 20000 &&
                 p.y <= 20000,
             ),
@@ -224,7 +228,7 @@ export function layout(root: Topic) {
   return { nodes, edges, width: cx * 2, height: total + 160 };
 }
 
-export function mapLayout(map: MindMap) {
+function singleLayout(map: MindMap) {
   let base = layout(map.root);
   if (!map.mode || map.mode === "mindmap") {
     const nodes: typeof base.nodes = [],
@@ -489,6 +493,69 @@ function xmlTopic(el: Element, depth = 0, counter = { n: 0 }): Topic {
       : [],
   };
 }
+export function mapLayout(map: MindMap) {
+  const roots = [
+    { ...map.root, children: map.root.children.filter((t) => !t.independent) },
+    ...map.root.children.filter((t) => t.independent),
+  ];
+  if (roots.length === 1) return singleLayout(map);
+  const nodes: ReturnType<typeof singleLayout>["nodes"] = [],
+    edges: ReturnType<typeof singleLayout>["edges"] = [];
+  let top = 120;
+  let first = true;
+  for (const root of roots) {
+    const part = singleLayout({
+      ...map,
+      root,
+      links: [],
+      positions: undefined,
+      layoutPositions: undefined,
+      floating: [],
+    });
+    const minY = Math.min(...part.nodes.map((n) => n.y)),
+      maxY = Math.max(...part.nodes.map((n) => n.y));
+    const delta = first ? 0 : top - minY;
+    nodes.push(...part.nodes.map((n) => ({ ...n, y: n.y + delta })));
+    edges.push(...part.edges);
+    top = maxY + delta + 260;
+    first = false;
+  }
+  const positions =
+    map.layoutPositions?.[map.mode || "mindmap"] ||
+    (map.mode === "flow" ? map.positions : undefined);
+  for (const n of nodes) {
+    const p = positions?.[n.topic.id];
+    if (p) {
+      n.x = p.x;
+      n.y = p.y;
+    }
+  }
+  const visible = new Set(nodes.map((n) => n.topic.id));
+  for (const link of map.links || [])
+    if (visible.has(link.from) && visible.has(link.to))
+      edges.push({
+        a: link.from,
+        b: link.to,
+        id: link.id,
+        label: link.label,
+        color: "#9b72bb",
+      });
+  return {
+    nodes,
+    edges,
+    width: Math.max(
+      1200,
+      ...nodes.map((n) => n.x + 330),
+      ...(map.floating || []).map((n) => n.x + 400),
+    ),
+    height: Math.max(
+      800,
+      ...nodes.map((n) => n.y + 260),
+      ...(map.floating || []).map((n) => n.y + 380),
+    ),
+  };
+}
+
 function fingerprint(text: string) {
   let hash = 2166136261;
   for (let i = 0; i < text.length; i++)
@@ -612,13 +679,16 @@ export async function exportXmind(map: MindMap) {
       rootTopic: {
         ...toX(map.root),
         children: {
-          attached: map.root.children.map(toX),
-          detached: (map.floating || []).map((n) => ({
-            id: n.id,
-            title: n.text,
-            position: { x: n.x, y: n.y },
-            class: "topic",
-          })),
+          attached: map.root.children.filter((t) => !t.independent).map(toX),
+          detached: [
+            ...map.root.children.filter((t) => t.independent).map(toX),
+            ...(map.floating || []).map((n) => ({
+              id: n.id,
+              title: n.text,
+              position: { x: n.x, y: n.y },
+              class: "topic",
+            })),
+          ],
         },
         structureClass:
           map.mode === "flow"

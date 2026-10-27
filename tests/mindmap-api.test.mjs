@@ -133,7 +133,7 @@ test("flow metadata and floating memo bounds are validated", () => {
   m.links[0].to = "missing";
   assert.equal(validate(m), false);
   m.links[0].to = "a";
-  m.floating[0].x = -100;
+  m.floating[0].x = -2000;
   assert.equal(validate(m), false);
   m.floating[0].x = 100;
   m.floating.push({ ...m.floating[0] });
@@ -161,9 +161,36 @@ test("galaxy layouts and summary snapshots survive validation", () => {
     ],
   };
   assert(validate(m));
-  m.layoutPositions.graph.a.x = -10;
+  m.layoutPositions.graph.a.x = -2000;
   assert.equal(validate(m), false);
   m.layoutPositions.graph.a.x = 1000;
   m.floating[0].sourceIds = { bad: "shape" };
+  assert.equal(validate(m), false);
+});
+
+test("multiple core topics and positions left or above the original origin are valid", () => {
+  const m = {
+    id: "forest",
+    title: "핵심 주제",
+    root: {
+      id: "a",
+      title: "첫 주제",
+      children: [
+        {
+          id: "b",
+          title: "다른 주제",
+          core: true,
+          independent: true,
+          children: [],
+        },
+      ],
+    },
+    layoutPositions: { mindmap: { b: { x: -400, y: -250 } } },
+  };
+  assert(validate(m));
+  m.root.children[0].core = "invalid";
+  assert.equal(validate(m), false);
+  m.root.children[0].core = true;
+  m.layoutPositions.mindmap.b.x = -1201;
   assert.equal(validate(m), false);
 });

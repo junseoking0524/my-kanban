@@ -48,7 +48,7 @@ const assert = require("node:assert/strict");
   const node = (text) => page.locator(".mm-topic").filter({ hasText: text });
   const rename = async (name) => {
     await page.getByLabel("노드 이름", { exact: true }).fill(name);
-    await page.getByLabel("노드 이름", { exact: true }).press("Enter");
+    await page.getByLabel("노드 이름", { exact: true }).press("Escape");
   };
   const save = () =>
     page
@@ -96,7 +96,7 @@ const assert = require("node:assert/strict");
   await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 8 });
   await page.mouse.up();
   await save();
-  assert.equal(cloud[0].links.length, 1);
+  assert.equal(cloud[0].links?.length, 1);
   const edgePoint = await page
     .locator(".mm-edge-hit")
     .last()
@@ -170,7 +170,7 @@ const assert = require("node:assert/strict");
   await page.getByRole("button", { name: "전체 보기", exact: true }).click();
   await page.waitForTimeout(250);
   await page.screenshot({ path: "/tmp/mindmap-galaxy-studio.png" });
-  await page.getByRole("button", { name: "여러 개 선택", exact: true }).click();
+
   const boxes = await page.locator("[data-node-id]").evaluateAll((els) =>
     els.map((el) => {
       const r = el.getBoundingClientRect();
@@ -197,7 +197,6 @@ const assert = require("node:assert/strict");
   await page.mouse.up();
   await save();
   assert.equal(Object.keys(cloud[0].layoutPositions.graph).length, 4);
-  await page.getByRole("button", { name: "여러 개 선택", exact: true }).click();
 
   await page.reload();
   await page.getByLabel("정리 방식", { exact: true }).waitFor();
@@ -226,6 +225,93 @@ const assert = require("node:assert/strict");
   assert.equal(await page.locator(".mm-decision").count(), 1);
   await page.getByRole("button", { name: "노드 옵션", exact: true }).click();
   await save();
+  // Independent core topics plus keyboard-first level creation, while names are being edited.
+  await page.getByRole("button", { name: "＋ 핵심 주제", exact: true }).click();
+  await rename("독립 사업");
+  await page.getByRole("button", { name: "이름 편집 F2", exact: true }).click();
+  await page.getByLabel("노드 이름", { exact: true }).press("Tab");
+  await page.getByLabel("노드 이름", { exact: true }).fill("사업 실행");
+  await page.getByLabel("노드 이름", { exact: true }).press("Enter");
+  await rename("사업 점검");
+  await page.getByRole("button", { name: "☆ 핵심 강조", exact: true }).click();
+  await node("플랫폼 성장").click();
+  await node("플랫폼 성장").press("Enter");
+  await rename("별도 핵심");
+  await save();
+  const secondary = cloud[0].root.children.find((t) => t.title === "독립 사업");
+  assert(secondary.independent && secondary.core);
+  assert.deepEqual(
+    secondary.children.map((t) => t.title),
+    ["사업 실행", "사업 점검"],
+  );
+  assert(secondary.children[1].core);
+  assert(
+    cloud[0].root.children.find((t) => t.title === "별도 핵심").independent,
+  );
+  const forest = await page.evaluate(async () => {
+    const lib = await import("/src/mindmap.ts");
+    const m = JSON.parse(localStorage.getItem("kanban.mindmaps.v1"))[0],
+      model = lib.mapLayout(m),
+      roots = m.root.children.filter((t) => t.independent);
+    return {
+      roots: roots.length,
+      implicit: roots.some((t) =>
+        model.edges.some((e) => e.id === "tree-" + t.id),
+      ),
+      nodes: model.nodes.length,
+    };
+  });
+  assert.equal(forest.roots, 2);
+  assert.equal(forest.implicit, false);
+  assert.equal(forest.nodes, 8);
+  // Space and middle-button pans expose margins on every side without selecting.
+  const cv = page.locator(".mm-canvas");
+  await page.getByRole("button", { name: "중심 보기", exact: true }).click();
+  await page.waitForTimeout(350);
+  let before = await cv.evaluate((el) => ({
+    left: el.scrollLeft,
+    top: el.scrollTop,
+  }));
+  assert(before.left > 400 && before.top > 400);
+  let r = await cv.boundingBox();
+  await page.mouse.move(r.x + 30, r.y + 30);
+  await page.keyboard.down("Space");
+  await page.mouse.down();
+  await page.mouse.move(r.x + 190, r.y + 150, { steps: 6 });
+  await page.mouse.up();
+  await page.keyboard.up("Space");
+  let after = await cv.evaluate((el) => ({
+    left: el.scrollLeft,
+    top: el.scrollTop,
+  }));
+  assert(after.left < before.left - 100 && after.top < before.top - 80);
+  await page.mouse.move(r.x + 320, r.y + 260);
+  await page.mouse.down({ button: "middle" });
+  await page.mouse.move(r.x + 100, r.y + 80, { steps: 6 });
+  await page.mouse.up({ button: "middle" });
+  let back = await cv.evaluate((el) => ({
+    left: el.scrollLeft,
+    top: el.scrollTop,
+  }));
+  assert(back.left > after.left + 150 && back.top > after.top + 120);
+  await page.getByRole("button", { name: "전체 보기", exact: true }).click();
+  const coreSource = await page
+      .getByRole("button", { name: "플랫폼 성장 연결점", exact: true })
+      .boundingBox(),
+    coreTarget = await node("독립 사업").boundingBox();
+  await page.mouse.move(
+    coreSource.x + coreSource.width / 2,
+    coreSource.y + coreSource.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    coreTarget.x + coreTarget.width / 2,
+    coreTarget.y + coreTarget.height / 2,
+    { steps: 8 },
+  );
+  await page.mouse.up();
+  await save();
+  assert.equal(cloud[0].links.length, 2);
   const archive = await page.evaluate(async () => {
     const lib = await import("/src/mindmap.ts");
     const map = JSON.parse(localStorage.getItem("kanban.mindmaps.v1"))[0];
@@ -276,6 +362,9 @@ const assert = require("node:assert/strict");
     invalid: true,
   });
   // Folder management and new maps preserve the old board.
+  await page
+    .getByRole("button", { name: "보관함 펼치기", exact: true })
+    .click();
   const firstId = cloud[0].id;
   await page.getByRole("button", { name: "＋ 새 맵", exact: true }).click();
   await save();
@@ -313,7 +402,13 @@ const assert = require("node:assert/strict");
   await page.waitForFunction(() => !!document.fullscreenElement);
   await page.getByRole("button", { name: "전체 화면", exact: true }).click();
   await page.waitForFunction(() => !document.fullscreenElement);
-  await page.getByRole("button", { name: "패널 숨기기", exact: true }).click();
+  if (
+    await page.getByRole("button", { name: "패널 숨기기", exact: true }).count()
+  )
+    await page
+      .getByRole("button", { name: "패널 숨기기", exact: true })
+      .click();
+  assert.equal(await page.locator(".mm-inspector").isVisible(), false);
   await page.getByRole("button", { name: "도구 접기", exact: true }).click();
   assert.equal(await page.locator(".mm-toolbar").isVisible(), false);
   await page.setViewportSize({ width: 390, height: 844 });

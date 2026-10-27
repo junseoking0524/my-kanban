@@ -11,6 +11,8 @@ export function validate(map) {
       ids.has(t.id) ||
       typeof t.title !== "string" ||
       !Array.isArray(t.children) ||
+      (t.core !== undefined && typeof t.core !== "boolean") ||
+      (t.independent !== undefined && typeof t.independent !== "boolean") ||
       d > 50 ||
       ++n > 2000
     )
@@ -47,8 +49,8 @@ export function validate(map) {
                 n.sourceIds.every((id) => typeof id === "string"))) &&
             Number.isFinite(n.x) &&
             Number.isFinite(n.y) &&
-            n.x >= 0 &&
-            n.y >= 0 &&
+            n.x >= -1000 &&
+            n.y >= -1000 &&
             n.x <= 20000 &&
             n.y <= 20000,
         ))) &&
@@ -59,8 +61,8 @@ export function validate(map) {
             p &&
             Number.isFinite(p.x) &&
             Number.isFinite(p.y) &&
-            p.x >= 0 &&
-            p.y >= 0 &&
+            p.x >= -1000 &&
+            p.y >= -1000 &&
             p.x <= 20000 &&
             p.y <= 20000,
         ))) &&
@@ -75,8 +77,8 @@ export function validate(map) {
                 p &&
                 Number.isFinite(p.x) &&
                 Number.isFinite(p.y) &&
-                p.x >= 0 &&
-                p.y >= 0 &&
+                p.x >= -1000 &&
+                p.y >= -1000 &&
                 p.x <= 20000 &&
                 p.y <= 20000,
             ),
