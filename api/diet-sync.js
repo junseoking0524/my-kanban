@@ -1,3 +1,5 @@
+import {analyzeImage} from './nutrition-image.js';
+export const config = { maxDuration: 60 };
 import { google } from 'googleapis';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { validSummary, encrypt, fold } from '../lib/diet-cloud.js';
@@ -32,6 +34,7 @@ export default async function handler(req,res) {
   const token=String(req.headers.cookie??'').split(';').map(s=>s.trim()).find(s=>s.startsWith(cookieName+'='))?.slice(cookieName.length+1)??'';
   const [expires,signature]=token.split('.');
   if(!expires||!signature||!/^\d+$/.test(expires)||Number(expires)<Date.now()||!same(signature,sign(expires,secret))) return res.status(401).json({error:'기기 연결을 위해 접근 암호를 입력해주세요.'});
+  if(req.method==='POST' && body.action==='analyze') return analyzeImage(req,res);
   if(req.method==='POST' && (body.action!=='save'||!validSummary(body.summary)||!/^[-a-zA-Z0-9]{1,80}$/.test(body.id??'')||!/^[-a-zA-Z0-9]{1,80}$/.test(body.writer??'')||typeof body.base!=='string')) return res.status(400).json({error:'허용된 일별 요약 형식이 아닙니다.'});
   try {
     const auth=new google.auth.GoogleAuth({credentials:{client_email:process.env.GOOGLE_CLIENT_EMAIL,private_key:process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g,'\n')},scopes:['https://www.googleapis.com/auth/spreadsheets']});

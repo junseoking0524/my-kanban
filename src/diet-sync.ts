@@ -1,10 +1,11 @@
+import {trainingSummary} from './training-metrics.ts';
 import { initial, emptyDay, totals, workoutVolume } from './nutrition-data.ts';
 import type { State } from './nutrition-data.ts';
 export const DIET_KEY='austin-nutrition-v1';
 export function summary(state:State) {
   const {calories,protein,carbs,fat,water,goal,bmrHistory}=state.settings;
   return JSON.parse(JSON.stringify({settings:{calories,protein,carbs,fat,water,goal,bmrHistory},days:Object.fromEntries(Object.entries(state.days).map(([date,d])=>[date,{
-    activityCalories:d.activityCalories,distance:d.distance,heartRate:d.heartRate,rpe:d.rpe,condition:d.condition,dietComplete:d.dietComplete,morning:d.morning,bedtimeWeight:d.bedtimeWeight,water:d.water,sleep:d.sleep,breakfast:d.breakfast,
+    trainingSummary:trainingSummary(d),exerciseDone:d.exerciseDone,pain:d.pain,workoutReport:d.workoutReport,activityCalories:d.activityCalories,distance:d.distance,heartRate:d.heartRate,rpe:d.rpe,condition:d.condition,dietComplete:d.dietComplete,morning:d.morning,bedtimeWeight:d.bedtimeWeight,water:d.water,sleep:d.sleep,breakfast:d.breakfast,
     supplements:d.supplements.map(id=>state.supplementProducts?.find(p=>'product:'+p.id===id)?.product??id),exercise:d.exercise,minutes:d.minutes,intensity:d.intensity,bodyPart:d.bodyPart,burned:d.burned,
     nutrition:totals(d),mealCount:d.meals.length,sets:(d.workouts??[]).reduce((n,w)=>n+w.sets.filter(s=>s.done).length,0),volume:workoutVolume(d.workouts??[]),
   }]))}));
