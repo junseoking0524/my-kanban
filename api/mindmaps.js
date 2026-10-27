@@ -24,7 +24,10 @@ export function validate(map) {
     /^[a-zA-Z0-9_-]{1,100}$/.test(map.id) &&
     typeof map.title === "string" &&
     walk(map.root, 0) &&
-    (!map.mode || map.mode === "mindmap" || map.mode === "flow") &&
+    (!map.mode ||
+      map.mode === "mindmap" ||
+      map.mode === "flow" ||
+      map.mode === "graph") &&
     (!map.floating ||
       (Array.isArray(map.floating) &&
         map.floating.length <= 100 &&
@@ -36,6 +39,12 @@ export function validate(map) {
             !ids.has(n.id) &&
             typeof n.text === "string" &&
             typeof n.color === "string" &&
+            (!n.kind || n.kind === "summary") &&
+            (!n.title || typeof n.title === "string") &&
+            (!n.sourceIds ||
+              (Array.isArray(n.sourceIds) &&
+                n.sourceIds.length <= 2000 &&
+                n.sourceIds.every((id) => typeof id === "string"))) &&
             Number.isFinite(n.x) &&
             Number.isFinite(n.y) &&
             n.x >= 0 &&
@@ -54,6 +63,23 @@ export function validate(map) {
             p.y >= 0 &&
             p.x <= 20000 &&
             p.y <= 20000,
+        ))) &&
+    (!map.layoutPositions ||
+      (typeof map.layoutPositions === "object" &&
+        Object.values(map.layoutPositions).every(
+          (set) =>
+            set &&
+            typeof set === "object" &&
+            Object.values(set).every(
+              (p) =>
+                p &&
+                Number.isFinite(p.x) &&
+                Number.isFinite(p.y) &&
+                p.x >= 0 &&
+                p.y >= 0 &&
+                p.x <= 20000 &&
+                p.y <= 20000,
+            ),
         ))) &&
     (!map.links ||
       (Array.isArray(map.links) &&

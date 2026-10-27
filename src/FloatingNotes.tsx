@@ -5,6 +5,9 @@ export type FloatingNote = {
   x: number;
   y: number;
   color: string;
+  title?: string;
+  kind?: "summary";
+  sourceIds?: string[];
 };
 export function PositionHandle({
   x,
@@ -82,7 +85,7 @@ export default function FloatingNotes({
     <>
       {notes.map((n) => (
         <div
-          className="mm-floating mm-node"
+          className={`mm-floating mm-node ${n.kind === "summary" ? "mm-summary-card" : ""}`}
           key={n.id}
           style={{
             left: n.x,
@@ -98,17 +101,29 @@ export default function FloatingNotes({
             onCommit={(x, y) => onChange(n.id, { x, y })}
           />
           <div className="mm-floating-heading">
-            독립 메모{" "}
+            {n.kind === "summary" ? "Σ 서머리" : "독립 메모"}{" "}
             <button aria-label="독립 메모 삭제" onClick={() => onDelete(n.id)}>
               ×
             </button>
           </div>
+          {n.kind === "summary" && (
+            <input
+              aria-label="서머리 이름"
+              value={n.title || "서머리"}
+              onChange={(e) => onChange(n.id, { title: e.target.value })}
+            />
+          )}
           <textarea
-            aria-label="독립 메모 내용"
+            aria-label={n.kind === "summary" ? "서머리 내용" : "독립 메모 내용"}
             placeholder="아이디어나 메모를 자유롭게 적으세요"
             value={n.text}
             onChange={(e) => onChange(n.id, { text: e.target.value })}
           />
+          {n.kind === "summary" && (
+            <small className="mm-summary-source-count">
+              근거 노드 {n.sourceIds?.length || 0}개 · 내용 스냅샷
+            </small>
+          )}
           <select
             aria-label="독립 메모 색상"
             value={n.color}

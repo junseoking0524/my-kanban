@@ -139,3 +139,31 @@ test("flow metadata and floating memo bounds are validated", () => {
   m.floating.push({ ...m.floating[0] });
   assert.equal(validate(m), false);
 });
+
+test("galaxy layouts and summary snapshots survive validation", () => {
+  const m = {
+    id: "studio",
+    title: "보드",
+    mode: "graph",
+    root: { id: "a", title: "근거", children: [] },
+    layoutPositions: { graph: { a: { x: 1000, y: 850 } } },
+    floating: [
+      {
+        id: "s",
+        kind: "summary",
+        title: "인사이트",
+        text: "선택 내용 기반 초안",
+        sourceIds: ["a"],
+        x: 1200,
+        y: 700,
+        color: "#e7eafd",
+      },
+    ],
+  };
+  assert(validate(m));
+  m.layoutPositions.graph.a.x = -10;
+  assert.equal(validate(m), false);
+  m.layoutPositions.graph.a.x = 1000;
+  m.floating[0].sourceIds = { bad: "shape" };
+  assert.equal(validate(m), false);
+});

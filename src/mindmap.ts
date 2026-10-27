@@ -18,7 +18,13 @@ export type MindMap = {
   title: string;
   root: Topic;
   folder?: string;
-  mode?: "mindmap" | "flow";
+  mode?: "mindmap" | "flow" | "graph";
+  layoutPositions?: Partial<
+    Record<
+      "mindmap" | "flow" | "graph",
+      Record<string, { x: number; y: number }>
+    >
+  >;
   floating?: FloatingNote[];
   positions?: Record<string, { x: number; y: number }>;
   links?: { id: string; from: string; to: string; label: string }[];
@@ -88,7 +94,10 @@ export function validateMap(value: unknown): value is MindMap {
     /^[a-zA-Z0-9_-]{1,100}$/.test(m.id) &&
     typeof m.title === "string" &&
     check(m.root, 0) &&
-    (!m.mode || m.mode === "mindmap" || m.mode === "flow") &&
+    (!m.mode ||
+      m.mode === "mindmap" ||
+      m.mode === "flow" ||
+      m.mode === "graph") &&
     (!m.floating ||
       (Array.isArray(m.floating) &&
         m.floating.length <= 100 &&
@@ -100,6 +109,12 @@ export function validateMap(value: unknown): value is MindMap {
             !ids.has(n.id) &&
             typeof n.text === "string" &&
             typeof n.color === "string" &&
+            (!n.kind || n.kind === "summary") &&
+            (!n.title || typeof n.title === "string") &&
+            (!n.sourceIds ||
+              (Array.isArray(n.sourceIds) &&
+                n.sourceIds.length <= 2000 &&
+                n.sourceIds.every((id) => typeof id === "string"))) &&
             Number.isFinite(n.x) &&
             Number.isFinite(n.y) &&
             n.x >= 0 &&
@@ -118,6 +133,23 @@ export function validateMap(value: unknown): value is MindMap {
             p.y >= 0 &&
             p.x <= 20000 &&
             p.y <= 20000,
+        ))) &&
+    (!m.layoutPositions ||
+      (typeof m.layoutPositions === "object" &&
+        Object.values(m.layoutPositions).every(
+          (set) =>
+            set &&
+            typeof set === "object" &&
+            Object.values(set).every(
+              (p) =>
+                p &&
+                Number.isFinite(p.x) &&
+                Number.isFinite(p.y) &&
+                p.x >= 0 &&
+                p.y >= 0 &&
+                p.x <= 20000 &&
+                p.y <= 20000,
+            ),
         ))) &&
     (!m.links ||
       (Array.isArray(m.links) &&
@@ -194,6 +226,145 @@ export function layout(root: Topic) {
 
 export function mapLayout(map: MindMap) {
   let base = layout(map.root);
+  if (!map.mode || map.mode === "mindmap") {
+    const nodes: typeof base.nodes = [],
+      edges: typeof base.edges = [];
+    const colors = ["#657b6a", "#a58e68", "#7d84bd", "#b77885", "#609a9f"];
+    const size = (t: Topic): number =>
+      t.collapsed || !t.children.length
+        ? 90
+        : t.children.reduce((a, c) => a + size(c), 0);
+    const walk = (t: Topic, x: number, top: number, color: string) => {
+      const h = size(t);
+      nodes.push({ topic: t, x, y: top + h / 2, color: t.color || color });
+      if (!t.collapsed) {
+        let y = top;
+        for (const [i, c] of t.children.entries()) {
+          const col = t === map.root ? colors[i % colors.length] : color;
+          edges.push({ a: t.id, b: c.id, color: col });
+          walk(c, x + 260, y, col);
+          y += size(c);
+        }
+      }
+    };
+    walk(map.root, 230, 120, "#334e43");
+    base = {
+      nodes,
+      edges,
+      width: Math.max(1200, ...nodes.map((n) => n.x + 280)),
+      height: Math.max(650, size(map.root) + 240),
+    };
+  }
+  if (map.mode === "graph") {
+    const nodes: typeof base.nodes = [],
+      edges: typeof base.edges = [];
+    const colors = ["#a78bfa", "#67d4cf", "#ecaa74", "#de86bd", "#8ea8fa"];
+    const total = map.root.children.length;
+    nodes.push({ topic: map.root, x: 1000, y: 850, color: "#c8b8ff" });
+    const scatter = (
+      t: Topic,
+      x: number,
+      y: number,
+      angle: number,
+      depth: number,
+      color: string,
+    ) => {
+      nodes.push({ topic: t, x, y, color: t.color || color });
+      if (t.collapsed) return;
+      t.children.forEach((c, i) => {
+        const a =
+          angle +
+          (i - (t.children.length - 1) / 2) *
+            Math.min(0.7, 2.7 / Math.max(1, t.children.length));
+        const radius = 160 + depth * 35;
+        edges.push({ a: t.id, b: c.id, color });
+        scatter(
+          c,
+          Math.max(140, x + Math.cos(a) * radius),
+          Math.max(120, y + Math.sin(a) * radius),
+          a,
+          depth + 1,
+          color,
+        );
+      });
+    };
+    if (!map.root.collapsed)
+      map.root.children.forEach((c, i) => {
+        const a = -Math.PI / 2 + (2 * Math.PI * i) / Math.max(1, total),
+          color = colors[i % colors.length];
+        edges.push({ a: map.root.id, b: c.id, color });
+        scatter(
+          c,
+          1000 + Math.cos(a) * 330,
+          850 + Math.sin(a) * 330,
+          a,
+          1,
+          color,
+        );
+      });
+    // Deterministic force layout: connected ideas cluster; a small seeded offset breaks collinear starts.
+    if (nodes.length > 1 && nodes.length <= 180) {
+      nodes.forEach((n, i) => {
+        if (!i) return;
+        let seed = 0;
+        for (const c of n.topic.id) seed = (seed * 31 + c.charCodeAt(0)) >>> 0;
+        n.x += (seed % 73) - 36;
+        n.y += ((seed >>> 8) % 61) - 30;
+      });
+      const index = new Map(nodes.map((n, i) => [n.topic.id, i]));
+      const springs = [
+        ...edges.map((e) => [e.a, e.b]),
+        ...(map.links || []).map((l) => [l.from, l.to]),
+      ];
+      for (let step = 0; step < 100; step++) {
+        const dx = nodes.map(() => 0),
+          dy = nodes.map(() => 0);
+        for (let i = 0; i < nodes.length; i++)
+          for (let j = i + 1; j < nodes.length; j++) {
+            const x = nodes[i].x - nodes[j].x,
+              y = nodes[i].y - nodes[j].y,
+              d = Math.max(4, Math.hypot(x, y)),
+              force = 34000 / d;
+            dx[i] += (x / d) * force;
+            dy[i] += (y / d) * force;
+            dx[j] -= (x / d) * force;
+            dy[j] -= (y / d) * force;
+          }
+        for (const [a, b] of springs) {
+          const i = index.get(a),
+            j = index.get(b);
+          if (i === undefined || j === undefined) continue;
+          const x = nodes[j].x - nodes[i].x,
+            y = nodes[j].y - nodes[i].y,
+            d = Math.max(1, Math.hypot(x, y)),
+            force = (d * d) / 230;
+          dx[i] += (x / d) * force;
+          dy[i] += (y / d) * force;
+          dx[j] -= (x / d) * force;
+          dy[j] -= (y / d) * force;
+        }
+        const limit = 20 * (1 - step / 100) + 0.4;
+        nodes.forEach((n, i) => {
+          if (!i) return;
+          const d = Math.max(1, Math.hypot(dx[i], dy[i]));
+          n.x = Math.max(
+            140,
+            Math.min(1860, n.x + (dx[i] / d) * Math.min(d, limit)),
+          );
+          n.y = Math.max(
+            140,
+            Math.min(1560, n.y + (dy[i] / d) * Math.min(d, limit)),
+          );
+        });
+      }
+    }
+    base = {
+      nodes,
+      edges,
+      width: Math.max(2000, ...nodes.map((n) => n.x + 350)),
+      height: Math.max(1700, ...nodes.map((n) => n.y + 280)),
+    };
+  }
   if (map.mode === "flow") {
     const nodes: typeof base.nodes = [],
       edges: typeof base.edges = [];
@@ -227,6 +398,14 @@ export function mapLayout(map: MindMap) {
       height: Math.max(700, ...nodes.map((n) => n.y + 200)),
     };
   }
+  const stored =
+    map.layoutPositions?.[map.mode || "mindmap"] ||
+    (map.mode === "flow" ? map.positions : undefined);
+  base.nodes = base.nodes.map((n) =>
+    stored?.[n.topic.id] ? { ...n, ...stored[n.topic.id] } : n,
+  );
+  base.width = Math.max(base.width, ...base.nodes.map((n) => n.x + 310));
+  base.height = Math.max(base.height, ...base.nodes.map((n) => n.y + 230));
   const visible = new Set(base.nodes.map((n) => n.topic.id));
   const edges = base.edges.map((e) => ({
     ...e,
@@ -245,10 +424,17 @@ export function mapLayout(map: MindMap) {
   return {
     ...base,
     edges,
-    width: Math.max(base.width, ...(map.floating || []).map((n) => n.x + 310)),
+    width: Math.max(
+      base.width,
+      ...(map.floating || []).map(
+        (n) => n.x + (n.kind === "summary" ? 400 : 310),
+      ),
+    ),
     height: Math.max(
       base.height,
-      ...(map.floating || []).map((n) => n.y + 260),
+      ...(map.floating || []).map(
+        (n) => n.y + (n.kind === "summary" ? 380 : 260),
+      ),
     ),
   };
 }

@@ -5,7 +5,6 @@ import {
   findTopic,
   importXmind,
   mapLayout,
-  moveTopic,
   newMap,
   newTopic,
   parentOf,
@@ -15,6 +14,7 @@ import {
 import type { MindMap, Topic } from "./mindmap";
 import "./mindmap.css";
 import FloatingNotes, { PositionHandle } from "./FloatingNotes";
+import { summaryDraft } from "./mindmap-summary";
 type CardRef = { id: string; title: string; colId: string; boardId: string };
 type Props = {
   cards: CardRef[];
@@ -196,7 +196,6 @@ export default function MindmapView({
     [retry, setRetry] = useState(0),
     [zoom, setZoom] = useState(1),
     [linking, setLinking] = useState(false),
-    [panelTab, setPanelTab] = useState<"library" | "edit">("library"),
     [panning, setPanning] = useState(false),
     [focus, setFocus] = useState(
       () => new URLSearchParams(location.search).get("focus") === "1",
@@ -204,7 +203,29 @@ export default function MindmapView({
     [toolsVisible, setToolsVisible] = useState(true),
     [panelVisible, setPanelVisible] = useState(true),
     [connectTo, setConnectTo] = useState(""),
-    [connectionLabel, setConnectionLabel] = useState("");
+    [connectionLabel, setConnectionLabel] = useState(""),
+    [editingId, setEditingId] = useState(""),
+    [selectedEdge, setSelectedEdge] = useState(""),
+    [picked, setPicked] = useState<string[]>([]),
+    [selectMode, setSelectMode] = useState(false),
+    [advanced, setAdvanced] = useState(false),
+    [linkDraft, setLinkDraft] = useState<{
+      from: string;
+      x: number;
+      y: number;
+    } | null>(null),
+    [selectionRect, setSelectionRect] = useState<{
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+    } | null>(null),
+    [summary, setSummary] = useState<{
+      title: string;
+      text: string;
+      sourceIds: string[];
+    } | null>(null);
+  const marquee = useRef<{ x: number; y: number } | null>(null);
   const sectionRef = useRef<HTMLElement>(null);
   const current = maps.find((m) => m.id === active) || maps[0],
     topic = current
@@ -340,7 +361,7 @@ export default function MindmapView({
     const observer = new ResizeObserver(reveal);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [active, selected, ready]);
+  }, [active, current?.mode, ready]);
   const pan = useRef<{
     id: number;
     x: number;
@@ -389,11 +410,17 @@ export default function MindmapView({
     if (!el || !model) return;
     const xs = [
         ...model.nodes.map((n) => n.x),
-        ...(current?.floating || []).flatMap((n) => [n.x, n.x + 250]),
+        ...(current?.floating || []).flatMap((n) => [
+          n.x,
+          n.x + (n.kind === "summary" ? 320 : 250),
+        ]),
       ],
       ys = [
         ...model.nodes.map((n) => n.y),
-        ...(current?.floating || []).flatMap((n) => [n.y, n.y + 180]),
+        ...(current?.floating || []).flatMap((n) => [
+          n.y,
+          n.y + (n.kind === "summary" ? 330 : 180),
+        ]),
       ];
     const minX = Math.min(...xs) - 110,
       maxX = Math.max(...xs) + 110,
@@ -418,11 +445,26 @@ export default function MindmapView({
     );
   };
   const chooseMap = (id: string) => {
+    setPicked([]);
+    setEditingId("");
     const map = latest.current.find((m) => m.id === id);
     setActive(id);
     setSelected(map?.root.id || "");
   };
   const chooseTopic = (mapId: string, id: string) => {
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const { model, zoom } = viewRef.current;
+        const node = model?.nodes.find((n) => n.topic.id === id),
+          el = frame.current;
+        if (node && el)
+          el.scrollTo({
+            left: node.x * zoom - el.clientWidth / 2,
+            top: node.y * zoom - el.clientHeight / 2,
+            behavior: "smooth",
+          });
+      }),
+    );
     setActive(mapId);
     setSelected(id);
     const map = latest.current.find((m) => m.id === mapId);
@@ -484,7 +526,6 @@ export default function MindmapView({
       });
   };
   const add = (sibling = false) => {
-    setPanelTab("edit");
     if (!topic || !current) return;
     const n = newTopic();
     replace((m) => {
@@ -500,6 +541,8 @@ export default function MindmapView({
       );
     });
     setSelected(n.id);
+    setPicked([n.id]);
+    setEditingId(n.id);
   };
   const remove = () => {
     if (!topic || !current || topic.id === current.root.id) return;
@@ -539,6 +582,7 @@ export default function MindmapView({
       m.positions = root.positions;
       m.links = root.links;
       m.mode = root.mode;
+      m.layoutPositions = root.layoutPositions;
     }, false);
     setSelected(root.root.id);
   };
@@ -562,7 +606,7 @@ export default function MindmapView({
     m.title = name;
     m.root.title = name;
     m.folder = current?.folder;
-    setPanelTab("library");
+
     setMaps((p) => [...p, m]);
     setActive(m.id);
     setSelected(m.root.id);
@@ -583,12 +627,116 @@ export default function MindmapView({
   };
   const setPosition = (id: string, x: number, y: number) =>
     replace((m) => {
-      m.positions = { ...m.positions, [id]: { x, y } };
+      const mode = m.mode || "mindmap";
+      const stored =
+        m.layoutPositions?.[mode] ||
+        (mode === "flow" ? m.positions : undefined) ||
+        {};
+      const original = model?.nodes.find((n) => n.topic.id === id);
+      const group = picked.includes(id) && picked.length > 1 ? picked : [id];
+      const next = { ...stored };
+      for (const target of group) {
+        const n = model?.nodes.find((n) => n.topic.id === target);
+        if (!n || !original) continue;
+        next[target] = {
+          x: Math.max(110, Math.min(19000, n.x + x - original.x)),
+          y: Math.max(80, Math.min(19000, n.y + y - original.y)),
+        };
+      }
+      m.layoutPositions = { ...m.layoutPositions, [mode]: next };
+      if (mode === "flow") m.positions = next;
     });
+  const worldPoint = (x: number, y: number) => {
+    const el = frame.current;
+    if (!el) return { x: 0, y: 0 };
+    const r = el.getBoundingClientRect();
+    return {
+      x: (x - r.left + el.scrollLeft) / zoom,
+      y: (y - r.top + el.scrollTop) / zoom,
+    };
+  };
+  const finishConnection = (from: string, to: string) => {
+    if (!current || from === to || !findTopic(current.root, to)) return;
+    if (
+      (current.links || []).some((l) => l.from === from && l.to === to) ||
+      parentOf(current.root, to)?.id === from
+    )
+      return;
+    replace((m) => {
+      m.links = [...(m.links || []), { id: uid(), from, to, label: "" }];
+    });
+  };
+  const pickNode = (id: string, multiple: boolean) => {
+    setSelectedEdge("");
+    setSelected(id);
+    setPicked((prev) =>
+      multiple
+        ? prev.includes(id)
+          ? prev.filter((x) => x !== id)
+          : [...prev, id]
+        : [id],
+    );
+  };
+  const renameEdge = () => {
+    const edge = model?.edges.find((e) => e.id === selectedEdge);
+    if (!edge) return;
+    const label = prompt("연결선 이름", edge.label || "");
+    if (label === null) return;
+    replace((m) => {
+      if (selectedEdge.startsWith("tree-")) {
+        const t = findTopic(m.root, edge.b);
+        if (t) t.edgeLabel = label;
+      } else
+        m.links = m.links?.map((l) =>
+          l.id === selectedEdge ? { ...l, label } : l,
+        );
+    });
+  };
+  const removeEdge = () => {
+    if (!selectedEdge || selectedEdge.startsWith("tree-")) return;
+    replace((m) => {
+      m.links = m.links?.filter((l) => l.id !== selectedEdge);
+    });
+    setSelectedEdge("");
+  };
+  const startSummary = () => {
+    if (!current || picked.length < 2) return;
+    const d = summaryDraft(current, picked);
+    setSummary({
+      title: d.title,
+      text: d.text,
+      sourceIds: d.topics.map((t) => t.id),
+    });
+  };
+  const saveSummary = () => {
+    if (!summary || !model) return;
+    const nodes = model.nodes.filter((n) =>
+      summary.sourceIds.includes(n.topic.id),
+    );
+    const x = Math.min(18500, Math.max(...nodes.map((n) => n.x)) + 220),
+      y = Math.max(80, Math.min(...nodes.map((n) => n.y)) - 40);
+    replace((m) => {
+      m.floating = [
+        ...(m.floating || []),
+        {
+          id: uid(),
+          kind: "summary",
+          title: summary.title,
+          text: summary.text,
+          sourceIds: summary.sourceIds,
+          x,
+          y,
+          color: "#e7eafd",
+        },
+      ];
+    });
+    setSummary(null);
+    setPicked([]);
+  };
   const dropFlow = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (current?.mode !== "flow" || !drag.current || !frame.current) return;
+    if (!drag.current || !frame.current) return;
     const el = frame.current,
       r = el.getBoundingClientRect();
     setPosition(
@@ -634,7 +782,6 @@ export default function MindmapView({
     replace((m) => {
       m.folder = value.trim().slice(0, 80);
     }, false);
-    setPanelTab("library");
   };
   const importFile = async (f: File) => {
     if (f.size > 20 * 1024 * 1024) {
@@ -695,7 +842,7 @@ export default function MindmapView({
   return (
     <section
       ref={sectionRef}
-      className={`mm ${focus ? "mm-focus" : ""} ${!toolsVisible ? "mm-tools-hidden" : ""}`}
+      className={`mm ${focus ? "mm-focus" : ""} ${!toolsVisible ? "mm-tools-hidden" : ""} ${current?.mode === "graph" ? "mm-galaxy" : "mm-logic-studio"}`}
       aria-label="마인드맵 편집기"
       onKeyDown={(e) => {
         const el = e.target as HTMLElement;
@@ -721,10 +868,8 @@ export default function MindmapView({
         }
         if (e.key === "F2") {
           e.preventDefault();
-          setPanelTab("edit");
-          requestAnimationFrame(() =>
-            document.getElementById("mm-title")?.focus(),
-          );
+
+          setEditingId(topic?.id || "");
         }
       }}
     >
@@ -759,7 +904,6 @@ export default function MindmapView({
         </select>
         <button
           onClick={() => {
-            setPanelTab("library");
             document
               .querySelector(".mm-inspector")
               ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -867,17 +1011,60 @@ export default function MindmapView({
       {ready && current && model && topic && (
         <>
           <div className="mm-actions">
+            {selectedEdge && (
+              <>
+                <button onClick={renameEdge}>연결 이름 편집</button>
+                <button
+                  onClick={removeEdge}
+                  disabled={selectedEdge.startsWith("tree-")}
+                >
+                  추가 연결 삭제
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => {
+                if (topic) setEditingId(topic.id);
+              }}
+            >
+              이름 편집 F2
+            </button>
+            <button
+              className={selectMode ? "mm-active-tool" : ""}
+              aria-pressed={selectMode}
+              onClick={() => {
+                setSelectMode((v) => !v);
+                setPicked([]);
+              }}
+            >
+              여러 개 선택
+            </button>
+            <button
+              onClick={startSummary}
+              disabled={
+                picked.length < 2 || (current.floating?.length || 0) >= 100
+              }
+            >
+              Σ 서머리 만들기 ({picked.length})
+            </button>
+            <button
+              onClick={() => setAdvanced((v) => !v)}
+              aria-expanded={advanced}
+            >
+              노드 옵션
+            </button>
             <select
               aria-label="정리 방식"
               value={current.mode || "mindmap"}
               onChange={(e) =>
                 replace((m) => {
-                  m.mode = e.target.value as "mindmap" | "flow";
+                  m.mode = e.target.value as "mindmap" | "flow" | "graph";
                 })
               }
             >
-              <option value="mindmap">마인드맵</option>
+              <option value="mindmap">박스형 로직 트리</option>
               <option value="flow">순서도</option>
+              <option value="graph">우주 그래프</option>
             </select>
             <button
               onClick={addFloating}
@@ -885,17 +1072,19 @@ export default function MindmapView({
             >
               ＋ 독립 메모
             </button>
-            {current.mode === "flow" && (
+            {
               <button
                 onClick={() =>
                   replace((m) => {
-                    m.positions = {};
+                    const mode = m.mode || "mindmap";
+                    m.layoutPositions = { ...m.layoutPositions, [mode]: {} };
+                    if (mode === "flow") m.positions = {};
                   })
                 }
               >
-                순서도 자동 정렬
+                자동 정렬
               </button>
-            )}
+            }
             <input
               aria-label="마인드맵 이름"
               value={current.title}
@@ -954,6 +1143,157 @@ export default function MindmapView({
               </button>
             </div>
           </div>
+          {advanced && (
+            <div className="mm-node-options">
+              <label>
+                선택 노드 이름
+                <input
+                  id="mm-title"
+                  aria-label="선택 노드 이름"
+                  value={topic.title}
+                  onChange={(e) =>
+                    edit((t) => {
+                      t.title = e.target.value;
+                    })
+                  }
+                />
+              </label>
+              <label>
+                메모
+                <textarea
+                  aria-label="메모"
+                  value={topic.note || ""}
+                  onChange={(e) =>
+                    edit((t) => {
+                      t.note = e.target.value;
+                    })
+                  }
+                />
+              </label>
+              <label>
+                링크
+                <input
+                  aria-label="링크"
+                  value={topic.href || ""}
+                  onChange={(e) =>
+                    edit((t) => {
+                      t.href = e.target.value;
+                    })
+                  }
+                />
+              </label>
+              <label>
+                색상
+                <input
+                  type="color"
+                  aria-label="노드 색상"
+                  value={
+                    /^#[0-9a-f]{6}$/i.test(topic.color || "")
+                      ? topic.color
+                      : "#6475d9"
+                  }
+                  onChange={(e) =>
+                    edit((t) => {
+                      t.color = e.target.value;
+                    })
+                  }
+                />
+              </label>
+              {current.mode === "flow" && (
+                <>
+                  <select
+                    aria-label="순서도 박스 모양"
+                    value={topic.shape || "process"}
+                    onChange={(e) =>
+                      edit((t) => {
+                        t.shape = e.target.value as Topic["shape"];
+                      })
+                    }
+                  >
+                    <option value="process">처리</option>
+                    <option value="decision">판단</option>
+                    <option value="terminal">시작/끝</option>
+                  </select>
+                  <input
+                    aria-label="분기 이름"
+                    placeholder="분기 이름 (예/아니오)"
+                    value={topic.edgeLabel || ""}
+                    onChange={(e) =>
+                      edit((t) => {
+                        t.edgeLabel = e.target.value;
+                      })
+                    }
+                  />
+                </>
+              )}
+              <select
+                aria-label="추가 연결 대상"
+                value={connectTo}
+                onChange={(e) => setConnectTo(e.target.value)}
+              >
+                <option value="">연결할 노드</option>
+                {allTopics
+                  .filter((t) => t.id !== topic.id)
+                  .map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.title}
+                    </option>
+                  ))}
+              </select>
+              <input
+                aria-label="연결선 이름"
+                placeholder="연결선 이름"
+                value={connectionLabel}
+                onChange={(e) => setConnectionLabel(e.target.value)}
+              />
+              <button
+                disabled={!connectTo}
+                onClick={() => {
+                  replace((m) => {
+                    m.links = [
+                      ...(m.links || []),
+                      {
+                        id: uid(),
+                        from: topic.id,
+                        to: connectTo,
+                        label: connectionLabel,
+                      },
+                    ];
+                  });
+                  setConnectTo("");
+                  setConnectionLabel("");
+                }}
+              >
+                방향 화살표 추가
+              </button>
+              {linked ? (
+                <button onClick={() => onOpenCard(linked)}>칸반 열기</button>
+              ) : (
+                <button
+                  disabled={linking}
+                  onClick={async () => {
+                    setLinking(true);
+                    try {
+                      const card = await onCreateCard(
+                        topic.title,
+                        topic.note || "",
+                      );
+                      edit((t) => {
+                        t.cardId = card.id;
+                        t.boardId = card.boardId;
+                      });
+                    } catch (e) {
+                      alert(String(e));
+                    } finally {
+                      setLinking(false);
+                    }
+                  }}
+                >
+                  칸반 카드 만들기
+                </button>
+              )}
+            </div>
+          )}
           <div className="mm-nav-hint">
             빈 공간 드래그로 이동 · 휠로 확대/축소 · Shift+휠로 좌우 이동 ·
             모바일은 두 손가락으로 확대/축소
@@ -965,6 +1305,13 @@ export default function MindmapView({
               onPointerDown={(e) => {
                 if (e.button !== 0 && e.button !== 1) return;
                 if ((e.target as HTMLElement).closest(".mm-node")) return;
+                if (selectMode || e.shiftKey) {
+                  const point = worldPoint(e.clientX, e.clientY);
+                  marquee.current = point;
+                  setSelectionRect({ ...point, w: 0, h: 0 });
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                  return;
+                }
                 fingers.current.set(e.pointerId, {
                   x: e.clientX,
                   y: e.clientY,
@@ -991,6 +1338,17 @@ export default function MindmapView({
                 setPanning(true);
               }}
               onPointerMove={(e) => {
+                if (marquee.current) {
+                  const p = worldPoint(e.clientX, e.clientY),
+                    start = marquee.current;
+                  setSelectionRect({
+                    x: Math.min(start.x, p.x),
+                    y: Math.min(start.y, p.y),
+                    w: Math.abs(p.x - start.x),
+                    h: Math.abs(p.y - start.y),
+                  });
+                  return;
+                }
                 if (fingers.current.has(e.pointerId))
                   fingers.current.set(e.pointerId, {
                     x: e.clientX,
@@ -1012,6 +1370,26 @@ export default function MindmapView({
                 e.currentTarget.scrollTop = p.top - (e.clientY - p.y);
               }}
               onPointerUp={(e) => {
+                if (marquee.current) {
+                  const p = worldPoint(e.clientX, e.clientY),
+                    start = marquee.current;
+                  setPicked(
+                    model.nodes
+                      .filter(
+                        (n) =>
+                          n.x >= Math.min(start.x, p.x) &&
+                          n.x <= Math.max(start.x, p.x) &&
+                          n.y >= Math.min(start.y, p.y) &&
+                          n.y <= Math.max(start.y, p.y),
+                      )
+                      .map((n) => n.topic.id),
+                  );
+                  marquee.current = null;
+                  setSelectionRect(null);
+                  if (e.currentTarget.hasPointerCapture(e.pointerId))
+                    e.currentTarget.releasePointerCapture(e.pointerId);
+                  return;
+                }
                 fingers.current.delete(e.pointerId);
                 pinch.current = null;
                 pan.current = null;
@@ -1020,6 +1398,8 @@ export default function MindmapView({
                   e.currentTarget.releasePointerCapture(e.pointerId);
               }}
               onPointerCancel={() => {
+                marquee.current = null;
+                setSelectionRect(null);
                 fingers.current.clear();
                 pinch.current = null;
                 pan.current = null;
@@ -1028,7 +1408,7 @@ export default function MindmapView({
               tabIndex={0}
               aria-label="마인드맵 캔버스"
               onDragOver={(e) => {
-                if (current.mode === "flow") e.preventDefault();
+                e.preventDefault();
               }}
               onDrop={dropFlow}
             >
@@ -1067,6 +1447,47 @@ export default function MindmapView({
                         <path d="M0 0 L10 5 L0 10 z" fill="context-stroke" />
                       </marker>
                     </defs>
+                    {(current.floating || [])
+                      .filter((n) => n.kind === "summary")
+                      .map((note) => {
+                        const sources = model.nodes.filter((n) =>
+                          note.sourceIds?.includes(n.topic.id),
+                        );
+                        if (!sources.length) return null;
+                        const x = Math.min(...sources.map((n) => n.x)) - 105,
+                          y = Math.min(...sources.map((n) => n.y)) - 45,
+                          w = Math.max(...sources.map((n) => n.x)) - x + 105,
+                          h = Math.max(...sources.map((n) => n.y)) - y + 45;
+                        return (
+                          <g key={note.id} className="mm-summary-boundary">
+                            <rect x={x} y={y} width={w} height={h} rx="18" />
+                            <path
+                              d={`M${x + w},${y + h / 2} L${note.x},${note.y + 50}`}
+                            />
+                          </g>
+                        );
+                      })}
+                    {selectionRect && (
+                      <rect
+                        className="mm-marquee"
+                        x={selectionRect.x}
+                        y={selectionRect.y}
+                        width={selectionRect.w}
+                        height={selectionRect.h}
+                      />
+                    )}
+                    {linkDraft &&
+                      (() => {
+                        const a = model.nodes.find(
+                          (n) => n.topic.id === linkDraft.from,
+                        );
+                        return a ? (
+                          <path
+                            className="mm-link-draft"
+                            d={`M${a.x},${a.y} L${linkDraft.x},${linkDraft.y}`}
+                          />
+                        ) : null;
+                      })()}
                     {model.edges.map((edge) => {
                       const a = model.nodes.find((n) => n.topic.id === edge.a),
                         b = model.nodes.find((n) => n.topic.id === edge.b);
@@ -1086,19 +1507,40 @@ export default function MindmapView({
                         x2 = b.x - side * 84;
                       const custom = flow && !edge.id.startsWith("tree-");
                       const lane = Math.max(a.x, b.x) + 150;
-                      const d = custom
-                        ? `M${a.x + 84},${a.y} L${lane},${a.y} L${lane},${b.y} L${b.x + 84},${b.y}`
-                        : flow
-                          ? `M${a.x},${y1} L${a.x},${(y1 + y2) / 2} L${b.x},${(y1 + y2) / 2} L${b.x},${y2}`
-                          : `M${x1},${a.y} C${(x1 + x2) / 2},${a.y} ${(x1 + x2) / 2},${b.y} ${x2},${b.y}`;
+                      const graph = current.mode === "graph";
+                      const d = graph
+                        ? `M${a.x},${a.y} L${b.x},${b.y}`
+                        : custom
+                          ? `M${a.x + 84},${a.y} L${lane},${a.y} L${lane},${b.y} L${b.x + 84},${b.y}`
+                          : flow
+                            ? `M${a.x},${y1} L${a.x},${(y1 + y2) / 2} L${b.x},${(y1 + y2) / 2} L${b.x},${y2}`
+                            : `M${x1},${a.y} C${(x1 + x2) / 2},${a.y} ${(x1 + x2) / 2},${b.y} ${x2},${b.y}`;
                       return (
                         <g key={edge.id}>
                           <path
                             d={d}
                             fill="none"
                             stroke={edge.color}
-                            strokeWidth="2.5"
+                            strokeWidth={current.mode === "graph" ? 1.2 : 2.2}
+                            opacity={current.mode === "graph" ? 0.38 : 0.9}
                             markerEnd={flow ? "url(#mm-flow-arrow)" : undefined}
+                          />
+                          <path
+                            d={d}
+                            fill="none"
+                            stroke={
+                              selectedEdge === edge.id
+                                ? "#b4a1e977"
+                                : "transparent"
+                            }
+                            strokeWidth="14"
+                            pointerEvents="stroke"
+                            className="mm-edge-hit"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedEdge(edge.id);
+                            }}
                           />
                           {edge.label && (
                             <text
@@ -1123,21 +1565,21 @@ export default function MindmapView({
                   {model.nodes.map((n) => (
                     <div
                       key={n.topic.id}
-                      className={`mm-node ${n.topic.id === topic.id ? "mm-selected" : ""} ${n.topic.id === current.root.id ? "mm-root" : ""} ${current.mode === "flow" ? `mm-flow-node mm-${n.topic.shape || "process"}` : ""}`}
+                      data-node-id={n.topic.id}
+                      className={`mm-node ${n.topic.id === topic.id ? "mm-selected" : ""} ${picked.includes(n.topic.id) ? "mm-picked" : ""} ${n.topic.id === current.root.id ? "mm-root" : ""} ${current.mode === "graph" ? "mm-graph-node" : current.mode === "flow" ? `mm-flow-node mm-${n.topic.shape || "process"}` : ""}`}
                       style={{
-                        left: n.x - 84,
+                        left: n.x - (current.mode === "graph" ? 20 : 84),
                         top:
                           n.y -
-                          (current.mode === "flow" &&
-                          n.topic.shape === "decision"
-                            ? 36
-                            : 25),
+                          (current.mode === "graph"
+                            ? 20
+                            : current.mode === "flow" &&
+                                n.topic.shape === "decision"
+                              ? 36
+                              : 25),
                         borderColor: n.topic.color || n.color,
                       }}
-                      draggable={
-                        current.mode === "flow" ||
-                        n.topic.id !== current.root.id
-                      }
+                      draggable={editingId !== n.topic.id}
                       onDragStart={(e) => {
                         drag.current = n.topic.id;
                         e.dataTransfer.setData("text/plain", n.topic.id);
@@ -1147,66 +1589,123 @@ export default function MindmapView({
                         e.preventDefault();
                         e.stopPropagation();
                       }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (current.mode === "flow") {
-                          dropFlow(e);
-                          return;
-                        }
-                        const id = drag.current;
-                        if (id)
-                          replace((m) => {
-                            moveTopic(m.root, id, n.topic.id);
-                          });
-                        drag.current = "";
-                      }}
+                      onDrop={dropFlow}
                     >
-                      {current.mode === "flow" && (
+                      {
                         <>
                           <PositionHandle
                             x={n.x}
                             y={n.y}
                             zoom={zoom}
-                            offsetX={84}
-                            offsetY={n.topic.shape === "decision" ? 36 : 25}
+                            offsetX={current.mode === "graph" ? 20 : 84}
+                            offsetY={
+                              current.mode === "graph"
+                                ? 20
+                                : current.mode === "flow" &&
+                                    n.topic.shape === "decision"
+                                  ? 36
+                                  : 25
+                            }
                             onCommit={(x, y) => setPosition(n.topic.id, x, y)}
                           />
-                          {n.topic.shape === "decision" && (
-                            <svg
-                              className="mm-decision-shape"
-                              viewBox="0 0 168 72"
-                              aria-hidden="true"
-                            >
-                              <polygon
-                                points="84,1 167,36 84,71 1,36"
-                                fill="#f7f4ff"
-                                stroke={n.color}
-                                strokeWidth="2"
-                              />
-                            </svg>
-                          )}
+                          {current.mode === "flow" &&
+                            n.topic.shape === "decision" && (
+                              <svg
+                                className="mm-decision-shape"
+                                viewBox="0 0 168 72"
+                                aria-hidden="true"
+                              >
+                                <polygon
+                                  points="84,1 167,36 84,71 1,36"
+                                  fill="#f7f4ff"
+                                  stroke={n.color}
+                                  strokeWidth="2"
+                                />
+                              </svg>
+                            )}
                         </>
-                      )}
+                      }
                       <button
-                        className="mm-topic"
-                        onClick={() => {
-                          setSelected(n.topic.id);
-                          setPanelTab("edit");
+                        className="mm-connect-port"
+                        aria-label={`${n.topic.title} 연결점`}
+                        title="다른 노드로 드래그하여 연결"
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          e.currentTarget.setPointerCapture(e.pointerId);
+                          setLinkDraft({
+                            from: n.topic.id,
+                            ...worldPoint(e.clientX, e.clientY),
+                          });
                         }}
-                        onDoubleClick={() => {
-                          setSelected(n.topic.id);
-                          setTimeout(
-                            () => document.getElementById("mm-title")?.focus(),
-                            0,
-                          );
+                        onPointerMove={(e) => {
+                          if (!e.currentTarget.hasPointerCapture(e.pointerId))
+                            return;
+                          e.stopPropagation();
+                          setLinkDraft({
+                            from: n.topic.id,
+                            ...worldPoint(e.clientX, e.clientY),
+                          });
                         }}
-                        title={n.topic.title}
+                        onPointerUp={(e) => {
+                          e.stopPropagation();
+                          const target = document
+                            .elementFromPoint(e.clientX, e.clientY)
+                            ?.closest("[data-node-id]")
+                            ?.getAttribute("data-node-id");
+                          if (target) finishConnection(n.topic.id, target);
+                          setLinkDraft(null);
+                          if (e.currentTarget.hasPointerCapture(e.pointerId))
+                            e.currentTarget.releasePointerCapture(e.pointerId);
+                        }}
+                        onPointerCancel={() => setLinkDraft(null)}
                       >
-                        {n.topic.title || "빈 주제"}
-                        {n.topic.cardId ? " ▣" : ""}
-                        {n.topic.note ? " ✎" : ""}
+                        ●
                       </button>
+                      {editingId === n.topic.id ? (
+                        <input
+                          className="mm-inline-title"
+                          aria-label="노드 이름"
+                          autoFocus
+                          value={n.topic.title}
+                          onChange={(e) =>
+                            replace((m) => {
+                              findTopic(m.root, n.topic.id)!.title =
+                                e.target.value;
+                            })
+                          }
+                          onBlur={() => setEditingId("")}
+                          onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (
+                              !e.nativeEvent.isComposing &&
+                              (e.key === "Enter" || e.key === "Escape")
+                            )
+                              setEditingId("");
+                          }}
+                        />
+                      ) : (
+                        <button
+                          className="mm-topic"
+                          onClick={(e) =>
+                            pickNode(
+                              n.topic.id,
+                              e.shiftKey ||
+                                e.ctrlKey ||
+                                e.metaKey ||
+                                selectMode,
+                            )
+                          }
+                          onDoubleClick={() => {
+                            setSelected(n.topic.id);
+                            setEditingId(n.topic.id);
+                          }}
+                          title={n.topic.note || n.topic.title}
+                        >
+                          {n.topic.title || "이름 없는 노드"}
+                          {n.topic.cardId ? " ▣" : ""}
+                        </button>
+                      )}
                       {n.topic.children.length > 0 && (
                         <button
                           className="mm-fold"
@@ -1245,359 +1744,82 @@ export default function MindmapView({
               </div>
             </div>
             <aside className="mm-inspector" hidden={!panelVisible}>
-              <div className="mm-panel-tabs">
-                <button
-                  className={panelTab === "library" ? "active" : ""}
-                  onClick={() => setPanelTab("library")}
+              <MapLibrary
+                maps={maps}
+                active={current.id}
+                selected={topic.id}
+                onMap={chooseMap}
+                onTopic={chooseTopic}
+                onFolder={newFolder}
+              />
+              <label className="mm-folder-picker">
+                현재 맵의 폴더
+                <select
+                  aria-label="현재 맵의 폴더"
+                  value={current.folder || ""}
+                  onChange={(e) =>
+                    replace((m) => {
+                      m.folder = e.target.value;
+                    }, false)
+                  }
                 >
-                  📁 보관함
-                </button>
-                <button
-                  className={panelTab === "edit" ? "active" : ""}
-                  onClick={() => setPanelTab("edit")}
-                >
-                  주제 편집
-                </button>
-              </div>
-              <div hidden={panelTab !== "library"}>
-                <MapLibrary
-                  maps={maps}
-                  active={current.id}
-                  selected={topic.id}
-                  onMap={chooseMap}
-                  onTopic={chooseTopic}
-                  onFolder={newFolder}
-                />
-                <label className="mm-folder-picker">
-                  현재 맵의 폴더
-                  <select
-                    aria-label="현재 맵의 폴더"
-                    value={current.folder || ""}
-                    onChange={(e) =>
-                      replace((m) => {
-                        m.folder = e.target.value;
-                      }, false)
-                    }
-                  >
-                    <option value="">미분류</option>
-                    {[
-                      ...new Set(maps.map((m) => m.folder).filter(Boolean)),
-                    ].map((f) => (
+                  <option value="">미분류</option>
+                  {[...new Set(maps.map((m) => m.folder).filter(Boolean))].map(
+                    (f) => (
                       <option key={f} value={f}>
                         {f}
                       </option>
-                    ))}
-                  </select>
-                </label>
-                <button onClick={newFolder}>새 폴더로 이동</button>
-                <p className="mm-help">
-                  폴더 안의 맵 이름을 누르면 다시 열립니다. 펼침 화살표로 주제
-                  구조를 보고, 주제를 누르면 해당 위치로 이동합니다.
-                </p>
-              </div>
-              <div className="mm-edit-fields" hidden={panelTab !== "edit"}>
-                {current.mode === "flow" && (
-                  <div className="mm-flow-properties">
-                    <label>
-                      박스 모양
-                      <select
-                        aria-label="순서도 박스 모양"
-                        value={topic.shape || "process"}
-                        onChange={(e) =>
-                          edit((t) => {
-                            t.shape = e.target.value as Topic["shape"];
-                          })
-                        }
-                      >
-                        <option value="process">처리 (사각형)</option>
-                        <option value="decision">판단 (마름모)</option>
-                        <option value="terminal">시작/끝 (둥근 모양)</option>
-                      </select>
-                    </label>
-                    <label>
-                      상위 단계에서 오는 화살표 이름
-                      <input
-                        aria-label="분기 이름"
-                        placeholder="예 / 아니오"
-                        value={topic.edgeLabel || ""}
-                        onChange={(e) =>
-                          edit((t) => {
-                            t.edgeLabel = e.target.value;
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      추가 연결 대상
-                      <select
-                        aria-label="추가 연결 대상"
-                        value={connectTo}
-                        onChange={(e) => setConnectTo(e.target.value)}
-                      >
-                        <option value="">연결할 단계 선택</option>
-                        {allTopics
-                          .filter((t) => t.id !== topic.id)
-                          .map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.title}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                    <input
-                      aria-label="연결선 이름"
-                      placeholder="예: 다시 검토"
-                      value={connectionLabel}
-                      onChange={(e) => setConnectionLabel(e.target.value)}
-                    />
-                    <button
-                      disabled={!connectTo || connectTo === topic.id}
-                      onClick={() => {
-                        replace((m) => {
-                          m.links = [
-                            ...(m.links || []),
-                            {
-                              id: uid(),
-                              from: topic.id,
-                              to: connectTo,
-                              label: connectionLabel,
-                            },
-                          ];
-                        });
-                        setConnectTo("");
-                        setConnectionLabel("");
-                      }}
-                    >
-                      방향 화살표 추가
-                    </button>
-                    {current.links
-                      ?.filter((l) => l.from === topic.id || l.to === topic.id)
-                      .map((l) => (
-                        <div key={l.id} className="mm-link-item">
-                          <span>
-                            {findTopic(current.root, l.from)?.title} →{" "}
-                            {findTopic(current.root, l.to)?.title} {l.label}
-                          </span>
-                          <button
-                            aria-label="추가 연결선 삭제"
-                            onClick={() =>
-                              replace((m) => {
-                                m.links = m.links?.filter((x) => x.id !== l.id);
-                              })
-                            }
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                  </div>
-                )}
-
-                <span className="mm-eyebrow">선택한 주제</span>
-                <label>
-                  제목
-                  <input
-                    id="mm-title"
-                    value={topic.title}
-                    onChange={(e) =>
-                      edit((t) => {
-                        t.title = e.target.value;
-                      })
-                    }
-                  />
-                </label>
-                <label>
-                  메모
-                  <textarea
-                    aria-label="메모"
-                    value={topic.note || ""}
-                    onChange={(e) =>
-                      edit((t) => {
-                        t.note = e.target.value;
-                      })
-                    }
-                    rows={5}
-                  />
-                </label>
-                <label>
-                  링크
-                  <input
-                    aria-label="링크"
-                    type="url"
-                    placeholder="https://"
-                    value={topic.href || ""}
-                    onChange={(e) =>
-                      edit((t) => {
-                        t.href = e.target.value;
-                      })
-                    }
-                  />
-                </label>
-                {/^https?:\/\//i.test(topic.href || "") && (
-                  <a href={topic.href} target="_blank" rel="noreferrer">
-                    링크 열기 ↗
-                  </a>
-                )}
-                <label>
-                  가지 색상
-                  <input
-                    type="color"
-                    value={
-                      /^#[0-9a-f]{6}$/i.test(topic.color || "")
-                        ? topic.color
-                        : "#6475d9"
-                    }
-                    onChange={(e) =>
-                      edit((t) => {
-                        t.color = e.target.value;
-                      })
-                    }
-                  />
-                </label>
-                <label>
-                  이동할 상위 주제
-                  <select
-                    value=""
-                    onChange={(e) => {
-                      if (e.target.value)
-                        replace((m) => {
-                          moveTopic(m.root, topic.id, e.target.value);
-                        });
-                    }}
-                    disabled={topic.id === current.root.id}
-                  >
-                    <option value="">상위 주제 선택…</option>
-                    {(() => {
-                      const list: Topic[] = [];
-                      const walk = (t: Topic) => {
-                        if (t.id === topic.id) return;
-                        list.push(t);
-                        t.children.forEach(walk);
-                      };
-                      walk(current.root);
-                      return list.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.title}
-                        </option>
-                      ));
-                    })()}
-                  </select>
-                </label>
-                <button
-                  onClick={() =>
-                    edit((t) => {
-                      t.collapsed = !t.collapsed;
-                    })
-                  }
-                >
-                  {topic.collapsed ? "하위 가지 펼치기" : "하위 가지 접기"}
-                </button>
-                <hr />
-                <span className="mm-eyebrow">칸반 연결</span>
-                {linked ? (
-                  <>
-                    <button onClick={() => onOpenCard(linked)}>
-                      {linked.title} ↗
-                    </button>
-                    <p>
-                      상태:{" "}
-                      {linked.colId === "done"
-                        ? "완료"
-                        : linked.colId === "inprogress"
-                          ? "진행 중"
-                          : "할 일"}
-                    </p>
-                    <button
-                      onClick={() =>
-                        edit((t) => {
-                          delete t.cardId;
-                          delete t.boardId;
-                        })
-                      }
-                    >
-                      연결 해제
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      disabled={linking}
-                      onClick={async () => {
-                        const mapId = current.id,
-                          nodeId = topic.id;
-                        setLinking(true);
-                        try {
-                          const card = await onCreateCard(
-                            topic.title,
-                            topic.note || "",
-                          );
-                          setMaps((prev) =>
-                            prev.map((m) => {
-                              if (m.id !== mapId) return m;
-                              const copy = structuredClone(m),
-                                t = findTopic(copy.root, nodeId);
-                              if (t) {
-                                t.cardId = card.id;
-                                t.boardId = card.boardId;
-                              }
-                              return {
-                                ...copy,
-                                dirty: true,
-                                updatedAt: new Date().toISOString(),
-                              };
-                            }),
-                          );
-                        } catch (e) {
-                          alert("카드 생성 실패: " + (e as Error).message);
-                        } finally {
-                          setLinking(false);
-                        }
-                      }}
-                    >
-                      이 주제로 할 일 카드 만들기
-                    </button>
-                    <select
-                      aria-label="기존 칸반 카드 연결"
-                      value=""
-                      onChange={(e) => {
-                        const c = cards.find(
-                          (c) => `${c.boardId}:${c.id}` === e.target.value,
-                        );
-                        if (c)
-                          edit((t) => {
-                            t.cardId = c.id;
-                            t.boardId = c.boardId;
-                          });
-                      }}
-                    >
-                      <option value="">기존 카드 연결…</option>
-                      {cards.map((c) => (
-                        <option
-                          key={`${c.boardId}:${c.id}`}
-                          value={`${c.boardId}:${c.id}`}
-                        >
-                          {c.title}
-                        </option>
-                      ))}
-                    </select>
-                    {topic.cardId && (
-                      <p>
-                        연결된 카드가 삭제되었거나 아직 로드되지 않았습니다.
-                      </p>
-                    )}
-                  </>
-                )}
-                <p className="mm-help">
-                  빈 공간 드래그로 이동 · 휠로 확대/축소 · Shift+휠로 좌우 이동.
-                  주제를 클릭하고 오른쪽에서 편집하세요. 더블클릭 또는 F2로 제목
-                  편집 · Tab 하위 주제 · Enter 같은 단계 · Delete 삭제 ·
-                  Ctrl/Cmd+Z 실행 취소. 가지를 다른 주제 위에 놓으면 하위로
-                  이동합니다.
-                </p>
-              </div>
+                    ),
+                  )}
+                </select>
+              </label>
+              <button onClick={newFolder}>새 폴더로 이동</button>
+              <p className="mm-help">
+                노드 이름은 더블클릭 또는 F2로 편집합니다. 노드 옆 ● 연결점을
+                다른 노드로 드래그해 연결하세요. Shift+클릭 또는 ‘여러 개
+                선택’으로 묶어서 서머리를 만드세요.
+              </p>
             </aside>
           </div>
         </>
+      )}
+      {summary && (
+        <div className="mm-modal-backdrop">
+          <div
+            className="mm-summary-editor"
+            role="dialog"
+            aria-modal="true"
+            aria-label="서머리 만들기"
+          >
+            <h3>선택한 {summary.sourceIds.length}개 노드에서 인사이트 정리</h3>
+            <p>
+              선택한 내용·반복 키워드·연결 관계를 바탕으로 만든 초안입니다. 핵심
+              인사이트를 확인하고 수정하세요.
+            </p>
+            <label>
+              서머리 이름
+              <input
+                aria-label="서머리 초안 이름"
+                value={summary.title}
+                onChange={(e) =>
+                  setSummary({ ...summary, title: e.target.value })
+                }
+              />
+            </label>
+            <textarea
+              aria-label="서머리 초안"
+              value={summary.text}
+              onChange={(e) => setSummary({ ...summary, text: e.target.value })}
+              rows={14}
+            />
+            <div>
+              <button onClick={() => setSummary(null)}>취소</button>
+              <button className="mm-primary" onClick={saveSummary}>
+                캔버스에 서머리 추가
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </section>
   );
