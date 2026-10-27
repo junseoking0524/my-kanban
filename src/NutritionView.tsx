@@ -1,3 +1,4 @@
+import NutritionQuick from './NutritionQuick';
 import DietSyncPanel from './DietSyncPanel';
 import { ImagePaste, GoalSummary, GoalSettings, MacroSummary, FoodCatalog, SupplementManager, WorkoutManager, Num } from './NutritionTools';
 import { useState } from 'react';
@@ -12,7 +13,7 @@ function Card({title,children}:{title:string;children:ReactNode}) {return <secti
 function NumberField({label,value,onChange,step=1,max=10000}:{label:string;value:number|undefined;onChange:(n:number|undefined)=>void;step?:number;max?:number}) {return <label className="nt-field">{label}<input type="number" inputMode="decimal" min="0" max={max} step={step} value={value??''} onChange={e=>{const v=e.target.value;if(v==='')onChange(undefined);else if(Number.isFinite(+v)&&+v>=0&&+v<=max)onChange(+v);}}/></label>}
 export default function NutritionView() {
  const [boot]=useState(read),[state,setState]=useState<State>(boot.state),[locked,setLocked]=useState(!!boot.error);
- const [message,setMessage]=useState(boot.error),[date,setDate]=useState(today),[tab,setTab]=useState('오늘'),[meal,setMeal]=useState('저녁'),[token,setToken]=useState(''),[busy,setBusy]=useState(false),[planText,setPlanText]=useState(''),[week,setWeek]=useState(today),[draft,setDraft]=useState<Record<string,Food[]>|null>(null);
+ const [message,setMessage]=useState(boot.error),[date,setDate]=useState(today),[tab,setTab]=useState(new URLSearchParams(location.search).get('tab')||'설정·백업'),[meal,setMeal]=useState('저녁'),[token,setToken]=useState(''),[busy,setBusy]=useState(false),[planText,setPlanText]=useState(''),[week,setWeek]=useState(today),[draft,setDraft]=useState<Record<string,Food[]>|null>(null);
  const [custom,setCustom]=useState({name:'',portion:'1인분',kcal:'',protein:'',carbs:'',fat:''});
  const day=state.days[date]??emptyDay(), t=totals(day), settings=state.settings;
  function save(next:State,restoring=false) {if(locked&&!restoring)return;try {localStorage.setItem(KEY,JSON.stringify(next));setState(next);setLocked(false);setMessage('이 기기에 저장됨 · 서버 전송 상태는 기기 연결 영역에서 확인하세요.');}catch{setMessage('저장 공간 부족 또는 브라우저 저장 차단으로 저장하지 못했습니다. JSON 백업 후 다시 시도해주세요.');}}
@@ -37,8 +38,9 @@ export default function NutritionView() {
  const remaining=settings.calories?settings.calories-t.kcal:null;
  const proteinGap=settings.protein?Math.max(0,settings.protein-t.protein):null;
  function dinnerFoods() {const riceAmount=remaining!==null&&remaining<500?.5:1;return [{...presets[1],amount:1},{...presets[0],amount:riceAmount},{...presets[5],amount:1}];}
+ if(!new URLSearchParams(location.search).has('manage'))return <NutritionQuick state={state} save={save} locked={locked} message={message}/>;
  return <div className="nt">
-  <header className="nt-heading"><div><span className="nt-eyebrow">diet_obokpapa</span><h1>식단·운동 기록실</h1><p>근육은 차곡차곡, 체중은 천천히. 남편의 일일 기록</p></div><label className="nt-date">기록 날짜<input type="date" value={date} onChange={e=>e.target.value&&setDate(e.target.value)}/></label></header>
+  <header className="nt-heading"><div><span className="nt-eyebrow">diet_obokpapa</span><h1>기록 관리실</h1><a href="/nutrition.html">← 간편 기록으로</a><p>근육은 차곡차곡, 체중은 천천히. 남편의 일일 기록</p></div><label className="nt-date">기록 날짜<input type="date" value={date} onChange={e=>e.target.value&&setDate(e.target.value)}/></label></header>
   <DietSyncPanel state={locked?undefined:state}/><nav className="nt-tabs" aria-label="식단 메뉴">{['오늘','식단표','내 메뉴','운동 상세','보충제','추이','설정·백업'].map(x=><button key={x} aria-pressed={tab===x} className={tab===x?'active':''} onClick={()=>setTab(x)}>{x}</button>)}</nav>
   <p className="nt-status" role="status">{message||'이 기기에 자동 저장 · CSV/JSON 백업 지원'}</p>
   {locked&&<p className="nt-alert">설정·백업에서 JSON을 복원해주세요. 기존 저장값은 보존되어 있습니다.</p>}

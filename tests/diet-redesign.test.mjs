@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {initial,emptyDay,validateState} from '../src/nutrition-data.ts';
+import {balance,bmrAt,macroRatio,dayStatus,weightSeries} from '../src/diet-metrics.ts';
+import {summary} from '../src/diet-sync.ts';
+import {validSummary} from '../lib/diet-cloud.js';
+const date='2026-10-27';
+function fixture(){const s=initial();s.settings={...s.settings,calories:2000,protein:100,water:2000,bmrHistory:[{month:'2026-10',kcal:1800},{month:'2026-12',kcal:1900}]};s.days[date]={...emptyDay(),dietComplete:true,water:2000,activityCalories:400,burned:200,exercise:'휴식',meals:[{id:'a',name:'private menu',portion:'1',source:'test',kcal:2000,protein:100,carbs:250,fat:66,amount:1,meal:'점심'}]};return s;}
+test('balance uses historical BMR, all-day activity once and complete nutrition',()=>{const s=fixture();assert.equal(bmrAt(s,date).kcal,1800);assert.equal(balance(s,date),200);s.days[date].dietComplete=false;assert.equal(balance(s,date),null);s.days[date].dietComplete=true;s.days[date].meals[0].kcal=null;assert.equal(balance(s,date),null);});
+test('calendar distinguishes no record, partial, complete and goal; missing weight is not zero',()=>{const s=fixture();assert.equal(dayStatus(s,date),'goal');s.days[date].water=0;assert.equal(dayStatus(s,date),'recorded');s.days[date].dietComplete=false;assert.equal(dayStatus(s,date),'partial');assert.equal(dayStatus(s,'2026-10-26'),'empty');s.days[date].morning=80;const w=weightSeries(s,date,true);assert.equal(w[3].value,80);assert.equal(w[0].value,null);assert.deepEqual(macroRatio(10,10,0),[50,50,0]);});
+test('new backups and cloud aggregates validate without uploading favorites or physique notes',()=>{const s=fixture();s.favorites=['private'];s.days[date].physiqueNote='private body note';s.days[date].rpe=7;s.days[date].condition='보통';assert.equal(validateState(s),true);const data=summary(s);assert.equal(validSummary(data),true);assert.equal(JSON.stringify(data).includes('private'),false);assert.equal(data.days[date].rpe,7);assert.equal(data.settings.bmrHistory.length,2);s.days[date].rpe=11;assert.equal(validateState(s),false);data.days[date].rpe=11;assert.equal(validSummary(data),false);});
