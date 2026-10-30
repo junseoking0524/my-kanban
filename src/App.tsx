@@ -1,3 +1,4 @@
+import MemoView from "./MemoView";
 import ContentPlanning from "./ContentPlanning";
 import MindmapView from "./MindmapView";
 import NutritionDashboard from "./NutritionDashboard";
@@ -1247,9 +1248,9 @@ function PlanningView({onAddTasks,isMobile}:{
 // App
 // ─────────────────────────────────────────────────────────────────────────────
 type CatFilter = "all"|"company"|"biz"|"personal";
-type ViewId = "mindmap"|"kanban"|"mandala"|"planning"|"nutrition";
+type ViewId = "memo"|"mindmap"|"kanban"|"mandala"|"planning"|"nutrition";
 const CAT_FILTERS:{id:CatFilter;ko:string}[] = [
-  {id:"all",ko:"전체"},{id:"company",ko:"회사"},{id:"biz",ko:"Biz"},{id:"personal",ko:"개인"},
+  {id:"all",ko:"전체"},{id:"company",ko:"회사"},{id:"biz",ko:"biz"},{id:"personal",ko:"개인"},
 ];
 const SIDEBAR_W = 214;
 
@@ -1262,7 +1263,7 @@ export default function App() {
   const [editBoardId,setEditBoardId] = useState("work");
   const [showPanel,setShowPanel] = useState(false);
   const [activeTagFilter,setActiveTagFilter] = useState<string|null>(null);
-  const [view,setView] = useState<ViewId>(new URLSearchParams(window.location.search).get("view")==="mindmap"?"mindmap":new URLSearchParams(window.location.search).get("view")==="nutrition"?"nutrition":"kanban");
+  const [view,setView] = useState<ViewId>(new URLSearchParams(window.location.search).get("view")==="memo"?"memo":new URLSearchParams(window.location.search).get("view")==="planning"?"planning":new URLSearchParams(window.location.search).get("view")==="mindmap"?"mindmap":new URLSearchParams(window.location.search).get("view")==="nutrition"?"nutrition":"kanban");
   const [catFilter,setCatFilter] = useState<CatFilter>("all");
   const [selectedKey,setSelectedKey] = useState<string|null>(null);
   const [showHelp,setShowHelp] = useState(false);
@@ -1545,7 +1546,7 @@ export default function App() {
   };
 
   // 모바일: 좌우로 밀어서 칸반 ↔ 만다라트 ↔ 플래닝 ↔ 식단·운동 전환
-  const VIEW_ORDER:ViewId[]=["kanban","mindmap","mandala","planning","nutrition"];
+  const VIEW_ORDER:ViewId[]=["kanban","mindmap","nutrition","planning","memo","mandala"];
   const swipeStart=useRef<{x:number;y:number;ok:boolean}|null>(null);
   const viewSwipe={
     onTouchStart:(e:React.TouchEvent)=>{
@@ -1588,7 +1589,7 @@ export default function App() {
       }
       const t=e.target as HTMLElement;
       if(t instanceof HTMLInputElement||t instanceof HTMLTextAreaElement||t instanceof HTMLSelectElement||t.isContentEditable) return;
-      if(k.showPanel||k.showCleanup||(k.view==="nutrition"||k.view==="mindmap")) return;
+      if(k.showPanel||k.showCleanup||(k.view==="nutrition"||k.view==="mindmap"||k.view==="memo")) return;
       if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){
         if(k.toast?.undo){e.preventDefault();k.toast.undo();}
         return;
@@ -1632,7 +1633,7 @@ export default function App() {
   const chipBase:React.CSSProperties={padding:"4px 13px",borderRadius:999,fontSize:11.5,fontWeight:600,whiteSpace:"nowrap"};
 
   const navItem=(active:boolean,indent=false):React.CSSProperties=>({
-    padding:"6px 10px",paddingLeft:indent?26:10,borderRadius:8,marginBottom:2,fontSize:12,fontWeight:active?700:500,
+    padding:"6px 10px",paddingLeft:indent?36:10,borderRadius:8,marginBottom:2,fontSize:12,fontWeight:active?700:500,
     cursor:"pointer",display:"flex",alignItems:"center",gap:7,width:"100%",textAlign:"left",
     color:active?"#fff":"#52525b",
     background:active?"#18181b":"transparent",
@@ -1662,7 +1663,7 @@ export default function App() {
             </span>
           : <div style={{flex:1}}/>}
 
-        <span title="구글 드라이브(Sheets)에 자동 저장·동기화" style={{fontSize:10.5,flexShrink:0,
+        {view==="memo" ? <span style={{fontSize:10.5,color:"#8a8d96"}}>기기 내 보관</span> : <span title="구글 드라이브(Sheets)에 자동 저장·동기화" style={{fontSize:10.5,flexShrink:0,
           color:sync.state==="error"?"#18181b":"#8a8d96",fontWeight:sync.state==="error"?700:400,
           display:"flex",alignItems:"center",gap:5,cursor:sync.state==="error"?"pointer":"default"}}
           onClick={()=>{if(sync.state==="error")loadAll();}}>
@@ -1670,11 +1671,11 @@ export default function App() {
             background:sync.state==="ok"?"#18181b":sync.state==="syncing"?"#a1a1aa":"transparent",
             border:sync.state==="error"?"1.5px solid #18181b":"none"}}/>
           {isMobile?"":syncLabel}{sync.state==="error"&&" (다시 시도)"}
-        </span>
+        </span>}
 
         <button onClick={()=>setShowHelp(true)} title="키보드 단축키 (?)" className="btn-light"
           style={{width:28,height:28,borderRadius:8,fontSize:13,fontWeight:700,flexShrink:0}}>?</button>
-        <button onClick={()=>openQuick()} title="새 카드 추가 (+)" className="btn-dark"
+        <button onClick={()=>view==="memo"?document.getElementById("scratchpad-text")?.focus():openQuick()} title={view==="memo"?"메모 쓰기":"새 카드 추가 (+)"} className="btn-dark"
           style={{width:28,height:28,borderRadius:8,fontSize:18,fontWeight:300,lineHeight:1,flexShrink:0,
             display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
       </div>
@@ -1689,12 +1690,12 @@ export default function App() {
             <div style={{fontSize:10,fontWeight:700,color:"#8a8d96",letterSpacing:"0.1em",textTransform:"uppercase",margin:"0 4px 8px"}}>보드</div>
 
             {/* 칸반보드 — 누르면 접힘/펼침 */}
-            <button style={navItem(view==="kanban"&&!kanbanOpen)}
-              onClick={()=>{ if(view!=="kanban"){setView("kanban");} toggleKanbanNav(); }}>
+            <button aria-expanded={kanbanOpen} aria-controls="kanban-category-nav" style={navItem(view==="kanban"&&!kanbanOpen)}
+              onClick={()=>{ if(view!=="kanban"){setView("kanban"); setKanbanOpen(true); try { localStorage.setItem("kanban_nav_open","true"); } catch { /* optional preference */ } } else toggleKanbanNav(); }}>
               <span style={{fontSize:9,transform:kanbanOpen?"rotate(0)":"rotate(-90deg)",transition:"transform .15s",display:"inline-block"}}>▾</span>
               칸반보드
             </button>
-            {kanbanOpen&&CAT_FILTERS.map(f=>{
+            {kanbanOpen&&<div id="kanban-category-nav" role="group" aria-label="칸반보드 분류">{CAT_FILTERS.map(f=>{
               const active=view==="kanban"&&catFilter===f.id;
               return (
                 <button key={f.id} style={navItem(active,true)} onClick={()=>goKanban(f.id)}>
@@ -1702,15 +1703,17 @@ export default function App() {
                   <span style={{marginLeft:"auto",fontSize:10,opacity:.7}}>{countOf(f.id)}</span>
                 </button>
               );
-            })}
+            })}</div>}
             <button style={navItem(view==="mindmap")} onClick={()=>setView("mindmap")}><span style={{width:9}}/>마인드맵</button>
-            <button style={navItem(view==="mandala")} onClick={()=>setView("mandala")}>
-              <span style={{width:9}}/>만다라트
-            </button>
             <button style={navItem(view==="nutrition")} onClick={()=>setView("nutrition")}><span style={{width:9}}/>식단·운동</button>
             <button style={navItem(view==="planning")} onClick={()=>setView("planning")}>
               <span style={{width:9}}/>플래닝
             </button>
+            <button style={navItem(view==="memo")} onClick={()=>setView("memo")}><span style={{width:9}}/>메모</button>
+            <button style={navItem(view==="mandala")} onClick={()=>setView("mandala")}>
+              <span style={{width:9}}/>만다라트
+            </button>
+
 
             <div style={{height:1,background:"#c4c7ce",margin:"14px 0 10px"}}/>
             <div style={{fontSize:11,color:"#8a8d96",margin:"0 4px"}}>총 {allCards.length}개 카드</div>
@@ -1735,10 +1738,10 @@ export default function App() {
           <div style={{position:"sticky",top:0,zIndex:20,background:"rgba(241,242,244,.9)",backdropFilter:"blur(8px)",
             padding:isMobile?"10px 8px 8px":"14px 18px 10px",display:"flex",flexDirection:"column",gap:8}}>
             {isMobile&&(
-              <div style={{display:"inline-flex",alignSelf:"flex-start",background:"#fff",border:"1px solid #18181b",borderRadius:999,padding:2}}>
-                {([["kanban","칸반"],["mindmap","마인드맵"],["mandala","만다라트"],["planning","플래닝"],["nutrition","식단·운동"]] as const).map(([id,ko])=>(
+              <div style={{display:"inline-flex",alignSelf:"flex-start",maxWidth:"100%",overflowX:"auto",flexShrink:0,background:"#fff",border:"1px solid #18181b",borderRadius:999,padding:2}}>
+                {([["kanban","칸반보드"],["mindmap","마인드맵"],["nutrition","식단·운동"],["planning","플래닝"],["memo","메모"],["mandala","만다라트"]] as const).map(([id,ko])=>(
                   <button key={id} onClick={()=>{ setView(id); if(id==="kanban") setQuickStatus(null); }} className={view===id?"btn-dark":""}
-                    style={{padding:"4px 14px",borderRadius:999,fontSize:11.5,fontWeight:600,color:view===id?"#fff":"#52525b"}}>{ko}</button>
+                    style={{whiteSpace:"nowrap",padding:"4px 12px",borderRadius:999,fontSize:11.5,fontWeight:600,color:view===id?"#fff":"#52525b"}}>{ko}</button>
                 ))}
               </div>
             )}
@@ -1764,19 +1767,20 @@ export default function App() {
             )}
             {view!=="kanban"&&!isMobile&&(
               <div style={{fontSize:13,fontWeight:800,letterSpacing:"0.06em",color:"#18181b"}}>
-                {view==="mindmap"?"마인드맵":view==="nutrition"?"식단·운동":view==="mandala"?"만다라트":"플래닝"}
+                {view==="memo"?"메모":view==="mindmap"?"마인드맵":view==="nutrition"?"식단·운동":view==="mandala"?"만다라트":"플래닝"}
               </div>
             )}
           </div>
 
           <div style={{flex:1,padding:isMobile?"2px 8px 70px":"4px 18px 56px"}}
-            {...(isMobile&&view!=="mindmap"?viewSwipe:{})}>
+            {...(isMobile&&view!=="mindmap"&&view!=="memo"?viewSwipe:{})}>
             {isMobile&&view==="kanban"&&(
               <div style={{fontSize:10.5,color:"#a1a1aa",padding:"0 2px 8px",lineHeight:1.5}}>
                 ← → 화면을 밀면 칸반·만다라트·플래닝·식단 이동 · 카드를 왼쪽으로 밀면 삭제 · + 로 빠른 추가
               </div>
             )}
-            {view==="mindmap" ? <MindmapView
+            <div hidden={view!=="memo"}><MemoView/></div>
+            {view==="memo" ? null : view==="mindmap" ? <MindmapView
               cards={Object.entries(boards).flatMap(([boardId,cards])=>cards.map(c=>({...c,boardId})))}
               onOpenCard={c=>{const full=boards[c.boardId]?.find(x=>x.id===c.id);if(full)openCard(full,c.boardId);}}
               onCreateCard={async(title,note)=>{const category=catFilter==="all"?"company":catFilter;const boardId=category==="personal"?"personal":"work";const card:Card={id:newCardId(),title,note,colId:"todo",category,priority:"normal"};const result=await apiFetch("POST",boardId,card);const saved=result.card||card;setBoards(p=>({...p,[boardId]:[...p[boardId],saved]}));return {...saved,boardId};}}
@@ -1848,4 +1852,5 @@ export default function App() {
     </>
   );
 }
+
 
