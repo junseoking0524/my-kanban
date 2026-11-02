@@ -548,7 +548,13 @@ function SidePanel({card,boardId,onClose,onSave,onDelete,allTags}:{
     setForm(c);
     setTagInput("");
     setDueDateDisplay(dueDateToDisplay(c.dueDate||""));
-    setTimeout(()=>titleRef.current?.focus(),60);
+    const focusTimer=setTimeout(()=>{
+      const title=titleRef.current;
+      if(!title) return;
+      title.focus();
+      title.setSelectionRange(title.value.length,title.value.length);
+    },60);
+    return ()=>clearTimeout(focusTimer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[card]);
 
