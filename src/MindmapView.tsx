@@ -22,6 +22,37 @@ type Props = {
   onCreateCard: (title: string, note: string) => Promise<CardRef>;
   onOpenCard: (card: CardRef) => void;
 };
+const workDay = (value = new Date().toISOString()) => {
+  const date = new Date(value.slice(0, 24));
+  return Number.isNaN(+date) ? "" : new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(date);
+};
+const mapDays = (map: MindMap) => [...new Set([...(Array.isArray(map.workDates) ? map.workDates : []), workDay(map.updatedAt)].filter(d => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort();
+function WorkCalendar({map, onAdd}: {map: MindMap; onAdd: (date: string) => void}) {
+  const [month, setMonth] = useState(() => workDay().slice(0, 7));
+  const [date, setDate] = useState(workDay);
+  const days = mapDays(map);
+  const [y,m] = month.split("-").map(Number);
+  const first = new Date(Date.UTC(y,m-1,1)).getUTCDay();
+  const count = new Date(Date.UTC(y,m,0)).getUTCDate();
+  const move = (step: number) => setMonth(new Date(Date.UTC(y,m-1+step,1)).toISOString().slice(0,7));
+  return <details open className="mm-work-history">
+    <summary>작업 캘린더 · 기록</summary>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <button aria-label="이전 달" onClick={() => move(-1)}>‹</button><strong>{month}</strong><button aria-label="다음 달" onClick={() => move(1)}>›</button>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",textAlign:"center",gap:2}}>
+      {["일","월","화","수","목","금","토"].map(d => <small key={d}>{d}</small>)}
+      {Array.from({length:first},(_,i)=><span key={"blank"+i}/>)}
+      {Array.from({length:count},(_,i)=>{
+        const d = month+"-"+String(i+1).padStart(2,"0"), worked=days.includes(d);
+        return <span key={d} aria-label={d+(worked?" 작업 기록 있음":"")} style={{fontWeight:worked?800:400,background:worked?"#dceee4":undefined,color:worked?"#173e30":undefined,borderRadius:4}}>{i+1}</span>;
+      })}
+    </div>
+    <label>작업 날짜 <input type="date" value={date} onChange={e=>setDate(e.target.value)} /></label>
+    <button disabled={!date} onClick={()=>{onAdd(date);setMonth(date.slice(0,7));}}>날짜 기록</button>
+    <ul style={{maxHeight:125,overflowY:"auto",paddingLeft:22}}>{days.slice().reverse().map(d=><li key={d}><button onClick={()=>setMonth(d.slice(0,7))}>{d}</button></li>)}</ul>
+  </details>;
+}
 const CANVAS_PAD = 1200;
 const KEY = "kanban.mindmaps.v1";
 const ACTIVE_KEY = "kanban.mindmaps.active.v1";
@@ -88,7 +119,7 @@ function MapLibrary({
         <strong>
           마인드맵 보관함 <small>{maps.length}</small>
         </strong>
-        <button onClick={onFolder} title="현재 맵을 새 폴더로 이동">
+        <button onClick={onFolder} title="현재 맵을 프로젝트 이름 지정">
           ＋ 폴더
         </button>
       </div>
@@ -330,6 +361,8 @@ export default function MindmapView({
           }
         }
         setMaps(merged.length ? merged : [newMap()]);
+        const last = merged.slice().sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+        if (last) setActive(last.id);
         setReady(true);
       })
       .catch((e) => {
@@ -391,6 +424,32 @@ export default function MindmapView({
     }, 700);
     return () => clearTimeout(timer);
   }, [maps, ready, error, retry]);
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false, checking = false;
+    const refresh = async () => {
+      const snapshot = latest.current;
+      if (document.hidden || checking || inflight.current || snapshot.some(m => m.dirty)) return;
+      checking = true;
+      try {
+        const data = await request("GET");
+        if (cancelled || inflight.current || latest.current !== snapshot || !Array.isArray(data.maps)) return;
+        const remote = data.maps.filter(validateMap) as MindMap[];
+        if (!remote.length) return;
+        setMaps(prev => prev === snapshot
+          ? [...remote, ...prev.filter(m => !remote.some(r => r.id === m.id))]
+          : prev);
+      } catch { /* Keep the local copy when offline. */ }
+      finally { checking = false; }
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [ready]);
   const viewRef = useRef({ model, zoom, selected });
   useEffect(() => {
     viewRef.current = { model, zoom, selected };
@@ -571,6 +630,7 @@ export default function MindmapView({
       history.current[current.id] = h;
     }
     fn(copy);
+    copy.workDates = [...new Set([...mapDays(copy), workDay()])].slice(-3660);
     copy.updatedAt = new Date().toISOString() + ":" + uid();
     copy.dirty = true;
     if (!validateMap(copy)) {
@@ -934,7 +994,7 @@ export default function MindmapView({
   };
   const newFolder = () => {
     const value = prompt(
-      "현재 맵을 보관할 폴더 이름을 입력하세요.",
+      "현재 맵을 보관할 프로젝트 이름을 입력하세요.",
       current?.folder || "",
     );
     if (value === null || !value.trim()) return;
@@ -945,6 +1005,15 @@ export default function MindmapView({
   const importFile = async (f: File) => {
     if (f.size > 20 * 1024 * 1024) {
       alert("20MB 이하의 파일을 선택해주세요.");
+      return;
+    }
+    if (f.name.toLowerCase().endsWith(".tsv")) {
+      try {
+        const text = (await f.text()).replace(/^\uFEFF/, "");
+        if (text.split(/\r?\n/, 1)[0].trim() !== "깊이\t주제")
+          throw new Error("첫 줄에 깊이와 주제 열이 필요합니다.");
+        pasteTopics(text);
+      } catch (e) { setClipboardMessage((e as Error).message); }
       return;
     }
     if (
@@ -1006,14 +1075,47 @@ export default function MindmapView({
     visit(current.root);
     return lines.join("\n");
   };
+  const exportOutline = (sheets: boolean) => {
+    if (!current) return;
+    const rows: string[] = sheets ? ["깊이\t주제"] : [];
+    const visit = (t: Topic, depth: number) => {
+      const title = t.title.replace(/[\r\n\t]/g, " ");
+      rows.push(sheets ? depth+"\t"+(/^[=+@'-]/.test(title) ? "'"+title : title) : "\t".repeat(depth)+title);
+      const detached = sheets && t === current.root ? t.children.filter(c => c.independent) : [];
+      t.children.filter(c => !detached.includes(c)).forEach(c => visit(c, depth+1));
+      detached.forEach(c => visit(c, 0));
+    };
+    visit(current.root, 0);
+    download(new Blob([rows.join("\n")], {type:"text/plain;charset=utf-8"}), current.title.replace(/[\\/:*?"<>|]/g,"_")+(sheets?".tsv":".txt"));
+  };
   const pasteTopics = (text: string) => {
     if (!topic || !text.trim()) return;
     const lines = text
       .replace(/\r\n?/g, "\n")
       .split("\n")
       .filter((line) => line.trim());
-    if (lines.length > 2000 || text.length > 200000) {
+    if (lines.length > (lines[0]?.trim() === "깊이\t주제" ? 2001 : 2000) || text.length > 200000) {
       setClipboardMessage("한 번에 2,000줄, 200,000자 이하로 붙여넣어 주세요.");
+      return;
+    }
+    const sheetRows = lines[0]?.trim() === "깊이\t주제" ? lines.slice(1) : null;
+    if (sheetRows) {
+      const parsed = sheetRows.map(line => /^(\d{1,2})\t(.+)$/.exec(line));
+      const invalid = !parsed.length || parsed.some((row,i) => !row || Number(row[1]) > 49 || (i === 0 ? Number(row[1]) !== 0 : Number(row[1]) > Number(parsed[i-1]?.[1])+1));
+      if (invalid) { setClipboardMessage("시트는 깊이 0부터 시작하고 한 번에 한 단계씩 내려가야 합니다."); return; }
+      const map = newMap();
+      const stack: Topic[] = [];
+      for (const row of parsed) {
+        const depth = Number(row![1]), node = newTopic(row![2].replace(/^'(?=[=+@'-])/, ""));
+        if (!stack.length) { map.root = node; map.title = node.title; }
+        else if (depth === 0) { node.independent = true; map.root.children.push(node); }
+        else stack[depth-1].children.push(node);
+        stack[depth] = node;
+        stack.length = depth+1;
+      }
+      if (!validateMap(map)) { setClipboardMessage("시트에서 만든 맵이 저장 한도를 초과했습니다."); return; }
+      setMaps(prev=>[...prev,map]); setActive(map.id); setSelected(map.root.id);
+      setPasteOpen(false); setPasteText(""); setClipboardMessage("시트 내용을 새 맵으로 가져왔습니다.");
       return;
     }
     const roots: Topic[] = [];
@@ -1169,7 +1271,7 @@ export default function MindmapView({
             autoFocus
             value={pasteText}
             onChange={(e) => setPasteText(e.target.value)}
-            placeholder="선택한 주제 아래에 텍스트를 붙여넣으세요"
+            placeholder="일반 텍스트 또는 Sheets의 깊이·주제 열을 붙여넣으세요"
           />
           <button
             onClick={() => pasteTopics(pasteText)}
@@ -1223,12 +1325,12 @@ export default function MindmapView({
           ＋ 새 맵
         </button>
         <button onClick={() => file.current?.click()} disabled={!ready}>
-          .xmind / 백업 가져오기
+          .xmind / 백업 / TSV 가져오기
         </button>
         <input
           ref={file}
           type="file"
-          accept=".xmind,.json"
+          accept=".xmind,.json,.tsv"
           hidden
           onChange={(e) => {
             const f = e.target.files?.[0];
@@ -1236,6 +1338,8 @@ export default function MindmapView({
             e.target.value = "";
           }}
         />
+        <button onClick={() => exportOutline(false)} disabled={!current}>텍스트 백업</button>
+        <button onClick={() => exportOutline(true)} disabled={!current}>Sheets용 TSV</button>
         <button onClick={exportFile} disabled={!current}>
           .xmind 내보내기
         </button>
@@ -2152,9 +2256,9 @@ export default function MindmapView({
                 onFolder={newFolder}
               />
               <label className="mm-folder-picker">
-                현재 맵의 폴더
+                현재 맵의 프로젝트
                 <select
-                  aria-label="현재 맵의 폴더"
+                  aria-label="현재 맵의 프로젝트"
                   value={current.folder || ""}
                   onChange={(e) =>
                     replace((m) => {
@@ -2172,7 +2276,8 @@ export default function MindmapView({
                   )}
                 </select>
               </label>
-              <button onClick={newFolder}>새 폴더로 이동</button>
+              <button onClick={newFolder}>프로젝트 이름 지정</button>
+              <WorkCalendar key={current.id} map={current} onAdd={date => replace(m => { m.workDates = [...mapDays(m), date]; }, false)} />
               <p className="mm-help">
                 노드 이름은 더블클릭 또는 F2로 편집합니다. 노드 옆 ● 연결점을
                 다른 노드로 드래그해 연결하세요. Shift+클릭 또는 ‘여러 개

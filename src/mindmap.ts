@@ -22,6 +22,7 @@ export type MindMap = {
   title: string;
   root: Topic;
   folder?: string;
+  workDates?: string[];
   mode?: "mindmap" | "flow" | "graph";
   layoutPositions?: Partial<
     Record<
