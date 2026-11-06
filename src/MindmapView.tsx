@@ -299,6 +299,7 @@ export default function MindmapView({
     const down = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
       if (
+        !e.defaultPrevented &&
         e.code === "Space" &&
         (sectionRef.current?.contains(el) || el === document.body) &&
         !el.matches("input,textarea,select") &&
@@ -1763,7 +1764,7 @@ export default function MindmapView({
             </div>
           )}
           <div className="mm-nav-hint">
-            빈 공간 드래그 = 여러 개 선택 · Space+드래그/가운데 버튼 = 이동 · 휠
+            주제 클릭 후 Space = 편집 · 빈 공간 드래그 = 여러 개 선택 · 빈 공간에서 Space+드래그/가운데 버튼 = 이동 · 휠
             = 확대 · 모바일은 두 손가락으로 확대/축소
           </div>
           <div className="mm-workspace">
@@ -2172,7 +2173,6 @@ export default function MindmapView({
                       {editingId === n.topic.id ? (
                         <textarea
                           rows={1}
-                          placeholder="주제 입력"
                           className="mm-inline-title"
                           aria-label="노드 이름"
                           autoFocus
@@ -2207,7 +2207,14 @@ export default function MindmapView({
                                 }
                               : undefined
                           }
+                          aria-label={n.topic.title || "빈 주제"}
                           onFocus={() => setSelected(n.topic.id)}
+                          onKeyDown={(e) => {
+                            if (e.key !== " " || e.ctrlKey || e.metaKey || e.altKey || e.nativeEvent.isComposing) return;
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (!e.repeat) setEditingId(n.topic.id);
+                          }}
                           onClick={(e) =>
                             pickNode(
                               n.topic.id,
@@ -2220,7 +2227,7 @@ export default function MindmapView({
                           }}
                           title={n.topic.note || n.topic.title}
                         >
-                          {n.topic.title || "주제 입력"}
+                          {n.topic.title}
                           {n.topic.cardId ? " ▣" : ""}
                         </button>
                       )}

@@ -75,7 +75,7 @@ export const newTopic = (title = "새 주제"): Topic => ({
 export const newMap = (): MindMap => ({
   id: uid(),
   title: "새 마인드맵",
-  root: newTopic("중심 주제"),
+  root: newTopic(""),
   updatedAt: new Date().toISOString(),
   dirty: true,
 });
