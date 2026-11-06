@@ -250,6 +250,8 @@ export default function MindmapView({
     ),
     [toolsVisible, setToolsVisible] = useState(false),
     [panelVisible, setPanelVisible] = useState(false),
+    [topAction, setTopAction] = useState<"connect" | "summary" | null>(null),
+    [connectFrom, setConnectFrom] = useState(""),
     [connectTo, setConnectTo] = useState(""),
     [connectionLabel, setConnectionLabel] = useState(""),
     [editingId, setEditingId] = useState(""),
@@ -565,6 +567,7 @@ export default function MindmapView({
     );
   };
   const chooseMap = (id: string) => {
+    setTopAction(null);
     setPicked([]);
     setEditingId("");
     const map = latest.current.find((m) => m.id === id);
@@ -752,6 +755,7 @@ export default function MindmapView({
       m.positions = root.positions;
       m.links = root.links;
       m.mode = root.mode;
+      m.logicFree = root.logicFree;
       m.layoutPositions = root.layoutPositions;
     }, false);
     setPicked([]);
@@ -846,7 +850,8 @@ export default function MindmapView({
         {};
       const original = model?.nodes.find((n) => n.topic.id === id);
       const group = picked.includes(id) && picked.length > 1 ? picked : [id];
-      const next = { ...stored };
+      const next = mode === "mindmap" && !m.logicFree ? {} : { ...stored };
+      if (mode === "mindmap") m.logicFree = true;
       for (const target of group) {
         const n = model?.nodes.find((n) => n.topic.id === target);
         if (!n || !original) continue;
@@ -867,16 +872,16 @@ export default function MindmapView({
       y: (y - r.top + el.scrollTop) / zoom - CANVAS_PAD,
     };
   };
-  const finishConnection = (from: string, to: string) => {
-    if (!current || from === to || !findTopic(current.root, to)) return;
+  const finishConnection = (from: string, to: string, label = "") => {
+    if (!current || from === to || !findTopic(current.root, from) || !findTopic(current.root, to)) return false;
     if (
       (current.links || []).some((l) => l.from === from && l.to === to) ||
       (parentOf(current.root, to)?.id === from &&
         !findTopic(current.root, to)?.independent)
     )
-      return;
-    replace((m) => {
-      m.links = [...(m.links || []), { id: uid(), from, to, label: "" }];
+      return false;
+    return replace((m) => {
+      m.links = [...(m.links || []), { id: uid(), from, to, label }];
     });
   };
   const pickNode = (id: string, multiple: boolean) => {
@@ -913,8 +918,9 @@ export default function MindmapView({
     setSelectedEdge("");
   };
   const startSummary = () => {
-    if (!current || picked.length < 2) return;
-    const d = summaryDraft(current, picked);
+    const visible = picked.filter(id => model?.nodes.some(n => n.topic.id === id));
+    if (!current || visible.length < 2 || (current.floating?.length || 0) >= 100) return;
+    const d = summaryDraft(current, visible);
     setSummary({
       title: d.title,
       text: d.text,
@@ -1227,6 +1233,17 @@ export default function MindmapView({
           {toolsVisible ? "⌃" : "⌄"}
         </button>
         <button onClick={() => add()}>＋ 주제</button>
+        <button disabled={!current} onClick={() => replace(m => { m.mode = "mindmap"; m.logicFree = false; })}>로직 트리 정렬</button>
+        <button disabled={!topic} aria-expanded={topAction === "connect"} onClick={() => {
+          setConnectFrom(picked.length === 2 ? picked[0] : topic.id);
+          setConnectTo(picked.length === 2 ? picked[1] : "");
+          setConnectionLabel("");
+          setTopAction(topAction === "connect" ? null : "connect");
+        }}>연결</button>
+        <button disabled={!topic} aria-expanded={topAction === "summary"} onClick={() => {
+          if (picked.filter(id => model?.nodes.some(n => n.topic.id === id)).length >= 2 && (current.floating?.length || 0) < 100) { startSummary(); setTopAction(null); }
+          else { setPicked([topic.id]); setTopAction(topAction === "summary" ? null : "summary"); }
+        }}>Σ 요약</button>
         <button onClick={copyText} disabled={!topic}>
           텍스트 복사
         </button>
@@ -1255,6 +1272,31 @@ export default function MindmapView({
           >
             ×
           </button>
+        </div>
+      )}
+      {topAction && current && (
+        <div className="mm-focusbar mm-compactbar" role="group" aria-label={topAction === "connect" ? "주제 연결" : "요약할 주제 선택"}>
+          {topAction === "connect" ? <>
+            <select aria-label="연결 시작 주제" value={connectFrom} onChange={e => setConnectFrom(e.target.value)}>
+              <option value="">시작 주제</option>
+              {allTopics.map(t => <option key={t.id} value={t.id}>{t.title || "제목 없음"}</option>)}
+            </select>
+            <select aria-label="연결 도착 주제" value={connectTo} onChange={e => setConnectTo(e.target.value)}>
+              <option value="">도착 주제</option>
+              {allTopics.filter(t => t.id !== connectFrom).map(t => <option key={t.id} value={t.id}>{t.title || "제목 없음"}</option>)}
+            </select>
+            <input aria-label="연결 이름" placeholder="연결 이름 (선택)" value={connectionLabel} onChange={e => setConnectionLabel(e.target.value)} />
+            <button disabled={!connectFrom || !connectTo || connectFrom === connectTo} onClick={() => {
+              if (finishConnection(connectFrom, connectTo, connectionLabel.trim())) setTopAction(null);
+              else setClipboardMessage("이미 연결된 주제이거나 연결할 수 없는 대상입니다.");
+            }}>연결 추가</button>
+          </> : <>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",maxHeight:120,overflowY:"auto"}}>
+              {model?.nodes.map(({topic:t}) => <label key={t.id}><input type="checkbox" checked={picked.includes(t.id)} onChange={e => setPicked(prev => e.target.checked ? [...prev,t.id] : prev.filter(id=>id!==t.id))} /> {t.title || "제목 없음"}</label>)}
+            </div>
+            <button disabled={picked.filter(id => model?.nodes.some(n => n.topic.id === id)).length < 2 || (current.floating?.length || 0) >= 100} onClick={() => { startSummary(); setTopAction(null); }}>요약 초안 만들기</button>
+          </>}
+          <button onClick={() => setTopAction(null)}>닫기</button>
         </div>
       )}
       {pasteOpen && (
@@ -1479,6 +1521,7 @@ export default function MindmapView({
                     const mode = m.mode || "mindmap";
                     m.layoutPositions = { ...m.layoutPositions, [mode]: {} };
                     if (mode === "flow") m.positions = {};
+                    if (mode === "mindmap") m.logicFree = false;
                   })
                 }
               >
@@ -1950,8 +1993,8 @@ export default function MindmapView({
                       const side = b.x > a.x ? 1 : -1,
                         x1 = a.x + (side * topicSize(a.topic).width) / 2,
                         x2 = b.x - (side * topicSize(b.topic).width) / 2;
-                      const custom = flow && !edge.id.startsWith("tree-");
-                      const lane = Math.max(a.x, b.x) + 150;
+                      const custom = current.mode !== "graph" && !edge.id.startsWith("tree-");
+                      const lane = Math.max(a.x + topicSize(a.topic).width / 2, b.x + topicSize(b.topic).width / 2) + 32;
                       const graph = current.mode === "graph";
                       const d = graph
                         ? `M${a.x},${a.y} L${b.x},${b.y}`
@@ -1959,7 +2002,7 @@ export default function MindmapView({
                           ? `M${a.x + topicSize(a.topic).width / 2},${a.y} L${lane},${a.y} L${lane},${b.y} L${b.x + topicSize(b.topic).width / 2},${b.y}`
                           : flow
                             ? `M${a.x},${y1} L${a.x},${(y1 + y2) / 2} L${b.x},${(y1 + y2) / 2} L${b.x},${y2}`
-                            : `M${x1},${a.y} C${(x1 + x2) / 2},${a.y} ${(x1 + x2) / 2},${b.y} ${x2},${b.y}`;
+                            : `M${x1},${a.y} H${(x1 + x2) / 2} V${b.y} H${x2}`;
                       return (
                         <g key={edge.id}>
                           <path
@@ -1968,7 +2011,8 @@ export default function MindmapView({
                             stroke={edge.color}
                             strokeWidth={current.mode === "graph" ? 1.2 : 2.2}
                             opacity={current.mode === "graph" ? 0.38 : 0.9}
-                            markerEnd={flow ? "url(#mm-flow-arrow)" : undefined}
+                            strokeDasharray={custom && !flow ? "6 4" : undefined}
+                            markerEnd={flow || custom ? "url(#mm-flow-arrow)" : undefined}
                           />
                           <path
                             d={d}
@@ -1996,7 +2040,7 @@ export default function MindmapView({
                                     ? (a.x + b.x) / 2
                                     : (x1 + x2) / 2
                               }
-                              y={flow ? (y1 + y2) / 2 - 7 : (a.y + b.y) / 2 - 8}
+                              y={flow && !custom ? (y1 + y2) / 2 - 7 : (a.y + b.y) / 2 - 8}
                               textAnchor={custom ? "start" : "middle"}
                               className="mm-edge-label"
                             >

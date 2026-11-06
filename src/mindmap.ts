@@ -23,6 +23,7 @@ export type MindMap = {
   root: Topic;
   folder?: string;
   workDates?: string[];
+  logicFree?: boolean;
   mode?: "mindmap" | "flow" | "graph";
   layoutPositions?: Partial<
     Record<
@@ -281,9 +282,9 @@ function singleLayout(map: MindMap) {
     const colors = ["#657b6a", "#a58e68", "#7d84bd", "#b77885", "#609a9f"];
     const size = (t: Topic): number =>
       t.collapsed || !t.children.length
-        ? topicSize(t).height + 40
+        ? topicSize(t).height + 32
         : Math.max(
-            topicSize(t).height + 40,
+            topicSize(t).height + 32,
             t.children.reduce((a, c) => a + size(c), 0),
           );
     const widths: number[] = [];
@@ -302,13 +303,13 @@ function singleLayout(map: MindMap) {
       const h = size(t);
       nodes.push({ topic: t, x, y: top + h / 2, color: t.color || color });
       if (!t.collapsed) {
-        let y = top;
+        let y = top + (h - t.children.reduce((sum, c) => sum + size(c), 0)) / 2;
         for (const [i, c] of t.children.entries()) {
           const col = t === map.root ? colors[i % colors.length] : color;
           edges.push({ a: t.id, b: c.id, color: col });
           walk(
             c,
-            x + (widths[depth] + widths[depth + 1]) / 2 + 100,
+            x + (widths[depth] + widths[depth + 1]) / 2 + 64,
             y,
             col,
             depth + 1,
@@ -576,6 +577,8 @@ function xmlTopic(el: Element, depth = 0, counter = { n: 0 }): Topic {
   };
 }
 export function mapLayout(map: MindMap) {
+  if ((!map.mode || map.mode === "mindmap") && map.logicFree !== true)
+    map = { ...map, layoutPositions: undefined };
   const roots = [
     { ...map.root, children: map.root.children.filter((t) => !t.independent) },
     ...map.root.children.filter((t) => t.independent),
