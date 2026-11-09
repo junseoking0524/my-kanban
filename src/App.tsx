@@ -1,3 +1,4 @@
+import { TEMPLATE as BLOG_TEMPLATE } from "../lib/content-planning.js";
 import MemoView from "./MemoView";
 import ContentPlanning from "./ContentPlanning";
 import MindmapView from "./MindmapView";
@@ -269,7 +270,7 @@ type Card = {
   id:string; colId:string; title:string; note?:string;
   dueDate?:string; labelId?:string; calEventId?:string; tags?:string[];
   progress?: number; // 0-100 manual override
-  category?: "company"|"biz"|"personal"|"obok";
+  category?: "company"|"biz"|"personal"|"obok"|"blog";
   priority?: "urgent"|"important"|"normal";
 };
 
@@ -278,6 +279,7 @@ const CATEGORIES = [
   { id:"biz",      ko:"Biz",  cls:"pill-biz" },
   { id:"personal", ko:"개인", cls:"pill-me"  },
   { id:"obok", ko:"오복이", cls:"pill-me" },
+  { id:"blog", ko:"0bokpapa", cls:"pill-me" },
 ] as const;
 const PRIORITIES = [
   { id:"urgent",    ko:"긴급", cls:"pu-urgent"    },
@@ -287,8 +289,8 @@ const PRIORITIES = [
 const PRIO_RANK:Record<string,number> = { urgent:0, important:1, normal:2 };
 
 function catOf(card:Card, boardId:string){ return card.category || (boardId==="personal"?"personal":"company"); }
-function personalCategory(category:Card["category"]){ return category==="personal"||category==="obok"; }
-function categoryMatches(filter:CatFilter, category:Card["category"]){ return filter==="all"||filter===category||(filter==="personal"&&category==="obok"); }
+function personalCategory(category:Card["category"]){ return category==="personal"||category==="obok"||category==="blog"; }
+function categoryMatches(filter:CatFilter, category:Card["category"]){ return filter==="all"||filter===category||(filter==="personal"&&personalCategory(category)); }
 function localToday(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
 // 상태: TO-DO / WIP / DONE (예전 개인 보드의 확인·챙길 것·메모는 TO-DO로 취급)
 function statusOf(card:Card):"todo"|"inprogress"|"done"{ return card.colId==="inprogress"||card.colId==="done"?card.colId:"todo"; }
@@ -898,7 +900,7 @@ function CardTile({it,selected,onSelect,onOpen,onProgressChange,onDelete}:{
 // 오늘·내일·모레, 시간(14:00), 구분 ((회사)·(Biz)·(개인))을 뽑아 제목에서 빼고 속성으로 넣는다.
 function parseQuick(raw:string,now=new Date()){
   let t=" "+raw.trim()+" ";
-  let dueDate="", category:""|"company"|"biz"|"personal"|"obok"="";
+  let dueDate="", category:""|"company"|"biz"|"personal"|"obok"|"blog"="";
   const cm=t.match(/[(（\[]\s*(회사|biz|비즈|개인|오복이)\s*[)）\]]/i);
   if(cm){
     const k=cm[1].toLowerCase();
@@ -962,18 +964,51 @@ const SECTIONS = [
   { id:"done",       cls:"done", ko:"DONE",  sub:"완료"      },
 ] as const;
 
+function BlogScratchpad() {
+  const [memo,setMemo]=useState(()=>{try{return localStorage.getItem("kanban.0bokpapa.memo.v1")??"";}catch{return "";}});
+  const [format,setFormat]=useState(()=>{try{return localStorage.getItem("kanban.0bokpapa.format.v1")??BLOG_TEMPLATE;}catch{return BLOG_TEMPLATE;}});
+  const [notice,setNotice]=useState("");
+  const [saveError,setSaveError]=useState("");
+  const formatRef=useRef<HTMLTextAreaElement>(null);
+  const save=(field:"memo"|"format", value:string)=>{
+    (field==="memo"?setMemo:setFormat)(value);
+    setNotice("");
+    try { localStorage.setItem(`kanban.0bokpapa.${field}.v1`,value); setSaveError(""); }
+    catch { setSaveError("기기에 저장하지 못했습니다. 화면을 닫기 전에 내용을 복사해 주세요."); }
+  };
+  const copy=async()=>{
+    try {await navigator.clipboard.writeText(format);setNotice("양식을 복사했습니다.");}
+    catch {formatRef.current?.focus();formatRef.current?.select();setNotice("자동 복사가 막혀 있습니다. 선택한 양식을 직접 복사해 주세요.");}
+  };
+  return <section className="sec-col" aria-label="0bokpapa 메모장" data-noswipe>
+    <div className="sec-head done"><span className="sec-title">메모장</span></div>
+    <div style={{display:"grid",gap:12,padding:10}}>
+      <textarea aria-label="블로그 메모장" value={memo} onChange={e=>save("memo",e.target.value)}
+        placeholder="아이디어, 취재 메모, 기억해 둘 문장…" rows={12}
+        style={{width:"100%",boxSizing:"border-box",resize:"vertical",padding:10,border:"1px solid #d4d4d8",borderRadius:8,background:"#fff",lineHeight:1.6}}/>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
+        <label htmlFor="blog-copy-format" style={{fontWeight:700}}>블로그 양식</label>
+        <button className="btn-light" onClick={copy} disabled={!format} style={{padding:"5px 9px"}}>양식 복사</button>
+      </div>
+      <textarea id="blog-copy-format" ref={formatRef} value={format} onChange={e=>save("format",e.target.value)} rows={7} spellCheck={false}
+        style={{width:"100%",boxSizing:"border-box",resize:"vertical",padding:10,border:"1px solid #d4d4d8",borderRadius:8,background:"#f4f4f5",fontFamily:"monospace",lineHeight:1.55,tabSize:2}}/>
+      <small role="status" style={{color:"#52525b"}}>{saveError||notice||"메모와 양식은 이 브라우저에 자동 저장됩니다."}</small>
+    </div>
+  </section>;
+}
+
 function KanbanView({items,selectedKey,onSelect,onOpen,onProgressChange,onMove,onAdd,isMobile,onCardDelete,
-  quickStatus,quickLabel,onQuickAdd,onQuickClose}:{
+  quickStatus,quickLabel,onQuickAdd,onQuickClose,blog=false}:{
   items:Item[]; selectedKey:string|null; onSelect:(k:string)=>void;
   onOpen:(i:Item)=>void; onProgressChange:(cardId:string,boardId:string,v:number)=>void;
   onMove:(status:string)=>void; onAdd:(status:string)=>void; isMobile:boolean; onCardDelete:(i:Item)=>void;
-  quickStatus:string|null; quickLabel:string; onQuickAdd:(status:string,text:string)=>void; onQuickClose:()=>void;
+  blog?:boolean; quickStatus:string|null; quickLabel:string; onQuickAdd:(status:string,text:string)=>void; onQuickClose:()=>void;
 }) {
   const [over,setOver]=useState<string|null>(null);
   return (
     <div style={{display:"grid",gap:12,alignItems:"start",
       gridTemplateColumns:isMobile?"1fr":"repeat(3,minmax(0,1fr))"}}>
-      {SECTIONS.map(sec=>{
+      {SECTIONS.filter(sec=>!blog||sec.id!=="done").map(sec=>{
         const list=items.filter(i=>statusOf(i.card)===sec.id)
           .sort((a,b)=>urgencySortKey(a.card).localeCompare(urgencySortKey(b.card)));
         return (
@@ -982,8 +1017,8 @@ function KanbanView({items,selectedKey,onSelect,onOpen,onProgressChange,onMove,o
             onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node))setOver(null);}}
             onDrop={e=>{e.preventDefault();setOver(null);onMove(sec.id);}}>
             <div className={`sec-head ${sec.cls}`}>
-              <span className="sec-title">{sec.ko}</span>
-              <span style={{fontSize:11,opacity:.7,fontWeight:500}}>{sec.sub}</span>
+              <span className="sec-title">{blog?sec.sub:sec.ko}</span>
+              {!blog&&<span style={{fontSize:11,opacity:.7,fontWeight:500}}>{sec.sub}</span>}
               <span className="sec-count" style={{marginLeft:"auto"}}>{list.length}</span>
               <button onClick={()=>onAdd(sec.id)} title={`${sec.ko}에 카드 추가`}
                 style={{width:22,height:22,borderRadius:7,fontSize:16,lineHeight:1,color:"inherit",
@@ -1006,6 +1041,7 @@ function KanbanView({items,selectedKey,onSelect,onOpen,onProgressChange,onMove,o
           </div>
         );
       })}
+      {blog&&<BlogScratchpad/>}
     </div>
   );
 }
@@ -1118,7 +1154,7 @@ function HelpOverlay({onClose}:{onClose:()=>void}) {
 // PlanningView — 월간 플래닝. 날짜를 누르면 별도 입력창이 열리고, 입력한 내용은 TO-DO로 추가
 // ─────────────────────────────────────────────────────────────────────────────
 function PlanningView({onAddTasks,isMobile}:{
-  onAddTasks:(lines:string[],date:string,category:"company"|"biz"|"personal"|"obok")=>void; isMobile:boolean;
+  onAddTasks:(lines:string[],date:string,category:"company"|"biz"|"personal"|"obok"|"blog")=>void; isMobile:boolean;
 }) {
   const today = new Date();
   const [view,setView] = useState({y:today.getFullYear(),m:today.getMonth()});
@@ -1127,7 +1163,7 @@ function PlanningView({onAddTasks,isMobile}:{
   });
   const [editingDay,setEditingDay] = useState<string|null>(null);
   const [editVal,setEditVal] = useState("");
-  const [editCat,setEditCat] = useState<"company"|"biz"|"personal"|"obok">("company");
+  const [editCat,setEditCat] = useState<"company"|"biz"|"personal"|"obok"|"blog">("company");
   const taRef = useRef<HTMLTextAreaElement>(null);
 
   const toKey=(y:number,m:number,d:number)=>`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
@@ -1256,10 +1292,10 @@ function PlanningView({onAddTasks,isMobile}:{
 // ─────────────────────────────────────────────────────────────────────────────
 // App
 // ─────────────────────────────────────────────────────────────────────────────
-type CatFilter = "all"|"company"|"biz"|"personal"|"obok";
+type CatFilter = "all"|"company"|"biz"|"personal"|"obok"|"blog";
 type ViewId = "memo"|"mindmap"|"kanban"|"mandala"|"planning"|"nutrition";
 const CAT_FILTERS:{id:CatFilter;ko:string}[] = [
-  {id:"all",ko:"전체"},{id:"company",ko:"회사"},{id:"biz",ko:"biz"},{id:"personal",ko:"개인"},{id:"obok",ko:"오복이"},
+  {id:"all",ko:"전체"},{id:"company",ko:"회사"},{id:"biz",ko:"biz"},{id:"personal",ko:"개인"},{id:"obok",ko:"오복이"},{id:"blog",ko:"0bokpapa"},
 ];
 const SIDEBAR_W = 214;
 
@@ -1273,7 +1309,7 @@ export default function App() {
   const [showPanel,setShowPanel] = useState(false);
   const [activeTagFilter,setActiveTagFilter] = useState<string|null>(null);
   const [view,setView] = useState<ViewId>(new URLSearchParams(window.location.search).get("view")==="memo"?"memo":new URLSearchParams(window.location.search).get("view")==="planning"?"planning":new URLSearchParams(window.location.search).get("view")==="mindmap"?"mindmap":new URLSearchParams(window.location.search).get("view")==="nutrition"?"nutrition":"kanban");
-  const [catFilter,setCatFilter] = useState<CatFilter>("all");
+  const [catFilter,setCatFilter] = useState<CatFilter>(()=>new URLSearchParams(location.search).get("board")==="0bokpapa"?"blog":"all");
   const [selectedKey,setSelectedKey] = useState<string|null>(null);
   const [showHelp,setShowHelp] = useState(false);
   const [showCleanup,setShowCleanup] = useState(false);
@@ -1370,7 +1406,7 @@ export default function App() {
     (!activeTagFilter||(card.tags||[]).includes(activeTagFilter));
   const items:Item[]=(["work","personal"] as const)
     .flatMap(b=>(boards[b]||[]).map(card=>({card,boardId:b as string})))
-    .filter(i=>matchFilters(i.card,i.boardId));
+    .filter(i=>matchFilters(i.card,i.boardId)&&(catFilter!=="blog"||!isDoneCard(i.card)));
   // 키보드 이동 순서: TO-DO → WIP → DONE, 각 섹션은 긴급도 순
   const orderedItems=[...items].sort((a,b)=>{
     const d=STATUS_RANK[statusOf(a.card)]-STATUS_RANK[statusOf(b.card)];
@@ -1442,7 +1478,7 @@ export default function App() {
   };
 
   // 플래닝에서 입력한 줄 → TO-DO 카드
-  const addPlanTasks=(lines:string[],date:string,category:"company"|"biz"|"personal"|"obok")=>{
+  const addPlanTasks=(lines:string[],date:string,category:"company"|"biz"|"personal"|"obok"|"blog")=>{
     const target=personalCategory(category)?"personal":"work";
     const cards:Card[]=lines.map(title=>({id:newCardId(),colId:"todo",title,dueDate:date,category,priority:"normal"}));
     setBoards(prev=>({...prev,[target]:[...prev[target],...cards]}));
@@ -1555,7 +1591,7 @@ export default function App() {
   };
 
   // 모바일: 좌우로 밀어서 칸반 ↔ 만다라트 ↔ 플래닝 ↔ 식단·운동 전환
-  const VIEW_ORDER:ViewId[]=["kanban","mindmap","nutrition","planning","memo","mandala"];
+  const VIEW_ORDER:ViewId[]=["kanban","mindmap","nutrition","memo","mandala"];
   const swipeStart=useRef<{x:number;y:number;ok:boolean}|null>(null);
   const viewSwipe={
     onTouchStart:(e:React.TouchEvent)=>{
@@ -1694,7 +1730,7 @@ export default function App() {
 
         {!isMobile&&(
           <div className="metal-side" style={{width:SIDEBAR_W,flexShrink:0,padding:"16px 12px",overflowY:"auto"}}>
-            <MiniCalendar cards={allCards} onDayClick={d=>openNew("todo",catFilter==="obok"?"personal":"work",{dueDate:d,category:catFilter==="obok"?"obok":"company",priority:"normal"})}/>
+            <MiniCalendar cards={allCards} onDayClick={d=>openNew("todo",personalCategory(catFilter==="all"?undefined:catFilter)?"personal":"work",{dueDate:d,category:catFilter==="obok"||catFilter==="blog"||catFilter==="personal"?catFilter:"company",priority:"normal"})}/>
             <div style={{height:1,background:"#c4c7ce",margin:"16px 0"}}/>
             <div style={{fontSize:10,fontWeight:700,color:"#8a8d96",letterSpacing:"0.1em",textTransform:"uppercase",margin:"0 4px 8px"}}>보드</div>
 
@@ -1707,7 +1743,7 @@ export default function App() {
             {kanbanOpen&&<div id="kanban-category-nav" role="group" aria-label="칸반보드 분류">{CAT_FILTERS.map(f=>{
               const active=view==="kanban"&&catFilter===f.id;
               return (
-                <button key={f.id} style={{...navItem(active,true),...(f.id==="obok"?{paddingLeft:50}:{})}} onClick={()=>goKanban(f.id)}>
+                <button key={f.id} style={{...navItem(active,true),...((f.id==="obok"||f.id==="blog")?{paddingLeft:50}:{})}} onClick={()=>goKanban(f.id)}>
                   {f.ko}
                   <span style={{marginLeft:"auto",fontSize:10,opacity:.7}}>{countOf(f.id)}</span>
                 </button>
@@ -1715,9 +1751,6 @@ export default function App() {
             })}</div>}
             <button style={navItem(view==="mindmap")} onClick={()=>setView("mindmap")}><span style={{width:9}}/>마인드맵</button>
             <button style={navItem(view==="nutrition")} onClick={()=>setView("nutrition")}><span style={{width:9}}/>식단·운동</button>
-            <button style={navItem(view==="planning")} onClick={()=>setView("planning")}>
-              <span style={{width:9}}/>플래닝
-            </button>
             <button style={navItem(view==="memo")} onClick={()=>setView("memo")}><span style={{width:9}}/>메모</button>
             <button style={navItem(view==="mandala")} onClick={()=>setView("mandala")}>
               <span style={{width:9}}/>만다라트
@@ -1748,7 +1781,7 @@ export default function App() {
             padding:isMobile?"10px 8px 8px":"14px 18px 10px",display:"flex",flexDirection:"column",gap:8}}>
             {isMobile&&(
               <div style={{display:"inline-flex",alignSelf:"flex-start",maxWidth:"100%",overflowX:"auto",flexShrink:0,background:"#fff",border:"1px solid #18181b",borderRadius:999,padding:2}}>
-                {([["kanban","칸반보드"],["mindmap","마인드맵"],["nutrition","식단·운동"],["planning","플래닝"],["memo","메모"],["mandala","만다라트"]] as const).map(([id,ko])=>(
+                {([["kanban","칸반보드"],["mindmap","마인드맵"],["nutrition","식단·운동"],["memo","메모"],["mandala","만다라트"]] as const).map(([id,ko])=>(
                   <button key={id} onClick={()=>{ setView(id); if(id==="kanban") setQuickStatus(null); }} className={view===id?"btn-dark":""}
                     style={{whiteSpace:"nowrap",padding:"4px 12px",borderRadius:999,fontSize:11.5,fontWeight:600,color:view===id?"#fff":"#52525b"}}>{ko}</button>
                 ))}
@@ -1785,7 +1818,7 @@ export default function App() {
             {...(isMobile&&view!=="mindmap"&&view!=="memo"?viewSwipe:{})}>
             {isMobile&&view==="kanban"&&(
               <div style={{fontSize:10.5,color:"#a1a1aa",padding:"0 2px 8px",lineHeight:1.5}}>
-                ← → 화면을 밀면 칸반·만다라트·플래닝·식단 이동 · 카드를 왼쪽으로 밀면 삭제 · + 로 빠른 추가
+                ← → 화면을 밀면 칸반·만다라트·식단 이동 · 카드를 왼쪽으로 밀면 삭제 · + 로 빠른 추가
               </div>
             )}
             <div hidden={view!=="memo"}><MemoView/></div>
@@ -1796,7 +1829,7 @@ export default function App() {
               /> : view==="nutrition" ? <NutritionDashboard/> : loading
               ? <div style={{textAlign:"center",color:"var(--text-light)",paddingTop:60,fontSize:13}}>불러오는 중…</div>
               : view==="kanban"
-              ? <KanbanView items={items} selectedKey={selectedKey} onSelect={setSelectedKey}
+              ? <KanbanView blog={catFilter==="blog"} items={items} selectedKey={selectedKey} onSelect={setSelectedKey}
                   onOpen={it=>openCard(it.card,it.boardId)}
                   onProgressChange={handleProgressChange}
                   onMove={handleMove} onAdd={s=>openQuick(s)} isMobile={isMobile}
@@ -1850,7 +1883,7 @@ export default function App() {
       )}
 
       {showHelp&&<HelpOverlay onClose={()=>setShowHelp(false)}/>}
-      {showCleanup&&<CleanupModal cards={(boards.personal||[]).filter(c=>c.category!=="obok")} onClose={()=>setShowCleanup(false)} onDelete={cleanupDelete}/>}
+      {showCleanup&&<CleanupModal cards={(boards.personal||[]).filter(c=>c.category!=="obok"&&c.category!=="blog")} onClose={()=>setShowCleanup(false)} onDelete={cleanupDelete}/>}
 
       {showPanel&&(
         <SidePanel card={editCard} boardId={editBoardId}
