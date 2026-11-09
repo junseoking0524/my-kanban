@@ -269,7 +269,7 @@ type Card = {
   id:string; colId:string; title:string; note?:string;
   dueDate?:string; labelId?:string; calEventId?:string; tags?:string[];
   progress?: number; // 0-100 manual override
-  category?: "company"|"biz"|"personal";
+  category?: "company"|"biz"|"personal"|"obok";
   priority?: "urgent"|"important"|"normal";
 };
 
@@ -277,6 +277,7 @@ const CATEGORIES = [
   { id:"company",  ko:"회사", cls:"pill-co"  },
   { id:"biz",      ko:"Biz",  cls:"pill-biz" },
   { id:"personal", ko:"개인", cls:"pill-me"  },
+  { id:"obok", ko:"오복이", cls:"pill-me" },
 ] as const;
 const PRIORITIES = [
   { id:"urgent",    ko:"긴급", cls:"pu-urgent"    },
@@ -286,6 +287,8 @@ const PRIORITIES = [
 const PRIO_RANK:Record<string,number> = { urgent:0, important:1, normal:2 };
 
 function catOf(card:Card, boardId:string){ return card.category || (boardId==="personal"?"personal":"company"); }
+function personalCategory(category:Card["category"]){ return category==="personal"||category==="obok"; }
+function categoryMatches(filter:CatFilter, category:Card["category"]){ return filter==="all"||filter===category||(filter==="personal"&&category==="obok"); }
 function localToday(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
 // 상태: TO-DO / WIP / DONE (예전 개인 보드의 확인·챙길 것·메모는 TO-DO로 취급)
 function statusOf(card:Card):"todo"|"inprogress"|"done"{ return card.colId==="inprogress"||card.colId==="done"?card.colId:"todo"; }
@@ -895,11 +898,11 @@ function CardTile({it,selected,onSelect,onOpen,onProgressChange,onDelete}:{
 // 오늘·내일·모레, 시간(14:00), 구분 ((회사)·(Biz)·(개인))을 뽑아 제목에서 빼고 속성으로 넣는다.
 function parseQuick(raw:string,now=new Date()){
   let t=" "+raw.trim()+" ";
-  let dueDate="", category:""|"company"|"biz"|"personal"="";
-  const cm=t.match(/[(（\[]\s*(회사|biz|비즈|개인)\s*[)）\]]/i);
+  let dueDate="", category:""|"company"|"biz"|"personal"|"obok"="";
+  const cm=t.match(/[(（\[]\s*(회사|biz|비즈|개인|오복이)\s*[)）\]]/i);
   if(cm){
     const k=cm[1].toLowerCase();
-    category=k==="회사"?"company":k==="개인"?"personal":"biz";
+    category=k==="회사"?"company":k==="개인"?"personal":k==="오복이"?"obok":"biz";
     t=t.replace(cm[0]," ");
   }
   const ymd=(d:Date)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -1069,7 +1072,7 @@ const SHORTCUTS:[string[],string][] = [
 const MOBILE_GUIDE:[string,string][] = [
   ["+ 버튼","빠른 추가 — 입력 후 Enter(완료 키)를 계속 누르면 연속 입력"],
   ["날짜·요일","10/28 · 수요일 · 내일 처럼 쓰면 마감일이 자동 입력돼요"],
-  ["구분","(회사) (Biz) (개인) 을 붙이면 그 탭에 저장돼요"],
+  ["구분","(회사) (Biz) (개인) (오복이) 를 붙이면 그 탭에 저장돼요"],
   ["좌우로 밀기","빈 곳을 좌우로 밀면 칸반 ↔ 만다라트 ↔ 플래닝 ↔ 식단·운동"],
   ["카드 ← 밀기","카드를 왼쪽으로 끝까지 밀면 삭제 (아래 '되돌리기'로 복구)"],
   ["카드 탭","카드를 눌러 편집 · 바깥을 누르면 자동 저장"],
@@ -1115,7 +1118,7 @@ function HelpOverlay({onClose}:{onClose:()=>void}) {
 // PlanningView — 월간 플래닝. 날짜를 누르면 별도 입력창이 열리고, 입력한 내용은 TO-DO로 추가
 // ─────────────────────────────────────────────────────────────────────────────
 function PlanningView({onAddTasks,isMobile}:{
-  onAddTasks:(lines:string[],date:string,category:"company"|"biz"|"personal")=>void; isMobile:boolean;
+  onAddTasks:(lines:string[],date:string,category:"company"|"biz"|"personal"|"obok")=>void; isMobile:boolean;
 }) {
   const today = new Date();
   const [view,setView] = useState({y:today.getFullYear(),m:today.getMonth()});
@@ -1124,7 +1127,7 @@ function PlanningView({onAddTasks,isMobile}:{
   });
   const [editingDay,setEditingDay] = useState<string|null>(null);
   const [editVal,setEditVal] = useState("");
-  const [editCat,setEditCat] = useState<"company"|"biz"|"personal">("company");
+  const [editCat,setEditCat] = useState<"company"|"biz"|"personal"|"obok">("company");
   const taRef = useRef<HTMLTextAreaElement>(null);
 
   const toKey=(y:number,m:number,d:number)=>`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
@@ -1253,10 +1256,10 @@ function PlanningView({onAddTasks,isMobile}:{
 // ─────────────────────────────────────────────────────────────────────────────
 // App
 // ─────────────────────────────────────────────────────────────────────────────
-type CatFilter = "all"|"company"|"biz"|"personal";
+type CatFilter = "all"|"company"|"biz"|"personal"|"obok";
 type ViewId = "memo"|"mindmap"|"kanban"|"mandala"|"planning"|"nutrition";
 const CAT_FILTERS:{id:CatFilter;ko:string}[] = [
-  {id:"all",ko:"전체"},{id:"company",ko:"회사"},{id:"biz",ko:"biz"},{id:"personal",ko:"개인"},
+  {id:"all",ko:"전체"},{id:"company",ko:"회사"},{id:"biz",ko:"biz"},{id:"personal",ko:"개인"},{id:"obok",ko:"오복이"},
 ];
 const SIDEBAR_W = 214;
 
@@ -1363,7 +1366,7 @@ export default function App() {
   },[]);
 
   const matchFilters=(card:Card,boardId:string)=>
-    (catFilter==="all"||catOf(card,boardId)===catFilter) &&
+    categoryMatches(catFilter,catOf(card,boardId)) &&
     (!activeTagFilter||(card.tags||[]).includes(activeTagFilter));
   const items:Item[]=(["work","personal"] as const)
     .flatMap(b=>(boards[b]||[]).map(card=>({card,boardId:b as string})))
@@ -1377,7 +1380,7 @@ export default function App() {
   const allTags=Array.from(new Set(Object.values(boards).flat().flatMap(c=>c.tags||[]))).sort();
   const allCards=Object.values(boards).flat();
   const countOf=(f:CatFilter)=>f==="all"?allCards.length
-    :Object.entries(boards).flatMap(([b,cs])=>cs.map(c=>catOf(c,b))).filter(c=>c===f).length;
+    :Object.entries(boards).flatMap(([b,cs])=>cs.map(c=>catOf(c,b))).filter(c=>categoryMatches(f,c)).length;
 
   const showToast=(msg:string,undo?:()=>void)=>{
     if(toastTimer.current) clearTimeout(toastTimer.current);
@@ -1391,13 +1394,13 @@ export default function App() {
   };
   const openNewCard=(status="todo")=>{
     const category=catFilter==="all"?"company":catFilter;
-    openNew(status,category==="personal"?"personal":"work",{category,priority:"normal"});
+    openNew(status,personalCategory(category)?"personal":"work",{category,priority:"normal"});
   };
 
   // 새 카드: 화면에 먼저 반영하고 저장은 뒤에서 순서대로. 실패하면 카드를 되돌리고 알림
   const createCard=(card:Card,select=true)=>{
     const colId=statusOf(card);
-    const target=card.category==="personal"?"personal":"work";
+    const target=personalCategory(card.category)?"personal":"work";
     const id=newCardId();
     const full={...card,id,colId};
     setBoards(prev=>({...prev,[target]:[...prev[target],full]}));
@@ -1439,8 +1442,8 @@ export default function App() {
   };
 
   // 플래닝에서 입력한 줄 → TO-DO 카드
-  const addPlanTasks=(lines:string[],date:string,category:"company"|"biz"|"personal")=>{
-    const target=category==="personal"?"personal":"work";
+  const addPlanTasks=(lines:string[],date:string,category:"company"|"biz"|"personal"|"obok")=>{
+    const target=personalCategory(category)?"personal":"work";
     const cards:Card[]=lines.map(title=>({id:newCardId(),colId:"todo",title,dueDate:date,category,priority:"normal"}));
     setBoards(prev=>({...prev,[target]:[...prev[target],...cards]}));
     showToast(`TO-DO에 ${cards.length}개 추가됨`);
@@ -1691,7 +1694,7 @@ export default function App() {
 
         {!isMobile&&(
           <div className="metal-side" style={{width:SIDEBAR_W,flexShrink:0,padding:"16px 12px",overflowY:"auto"}}>
-            <MiniCalendar cards={allCards} onDayClick={d=>openNew("todo","work",{dueDate:d,category:"company",priority:"normal"})}/>
+            <MiniCalendar cards={allCards} onDayClick={d=>openNew("todo",catFilter==="obok"?"personal":"work",{dueDate:d,category:catFilter==="obok"?"obok":"company",priority:"normal"})}/>
             <div style={{height:1,background:"#c4c7ce",margin:"16px 0"}}/>
             <div style={{fontSize:10,fontWeight:700,color:"#8a8d96",letterSpacing:"0.1em",textTransform:"uppercase",margin:"0 4px 8px"}}>보드</div>
 
@@ -1704,7 +1707,7 @@ export default function App() {
             {kanbanOpen&&<div id="kanban-category-nav" role="group" aria-label="칸반보드 분류">{CAT_FILTERS.map(f=>{
               const active=view==="kanban"&&catFilter===f.id;
               return (
-                <button key={f.id} style={navItem(active,true)} onClick={()=>goKanban(f.id)}>
+                <button key={f.id} style={{...navItem(active,true),...(f.id==="obok"?{paddingLeft:50}:{})}} onClick={()=>goKanban(f.id)}>
                   {f.ko}
                   <span style={{marginLeft:"auto",fontSize:10,opacity:.7}}>{countOf(f.id)}</span>
                 </button>
@@ -1789,7 +1792,7 @@ export default function App() {
             {view==="memo" ? null : view==="mindmap" ? <MindmapView
               cards={Object.entries(boards).flatMap(([boardId,cards])=>cards.map(c=>({...c,boardId})))}
               onOpenCard={c=>{const full=boards[c.boardId]?.find(x=>x.id===c.id);if(full)openCard(full,c.boardId);}}
-              onCreateCard={async(title,note)=>{const category=catFilter==="all"?"company":catFilter;const boardId=category==="personal"?"personal":"work";const card:Card={id:newCardId(),title,note,colId:"todo",category,priority:"normal"};const result=await apiFetch("POST",boardId,card);const saved=result.card||card;setBoards(p=>({...p,[boardId]:[...p[boardId],saved]}));return {...saved,boardId};}}
+              onCreateCard={async(title,note)=>{const category=catFilter==="all"?"company":catFilter;const boardId=personalCategory(category)?"personal":"work";const card:Card={id:newCardId(),title,note,colId:"todo",category,priority:"normal"};const result=await apiFetch("POST",boardId,card);const saved=result.card||card;setBoards(p=>({...p,[boardId]:[...p[boardId],saved]}));return {...saved,boardId};}}
               /> : view==="nutrition" ? <NutritionDashboard/> : loading
               ? <div style={{textAlign:"center",color:"var(--text-light)",paddingTop:60,fontSize:13}}>불러오는 중…</div>
               : view==="kanban"
@@ -1847,7 +1850,7 @@ export default function App() {
       )}
 
       {showHelp&&<HelpOverlay onClose={()=>setShowHelp(false)}/>}
-      {showCleanup&&<CleanupModal cards={boards.personal||[]} onClose={()=>setShowCleanup(false)} onDelete={cleanupDelete}/>}
+      {showCleanup&&<CleanupModal cards={(boards.personal||[]).filter(c=>c.category!=="obok")} onClose={()=>setShowCleanup(false)} onDelete={cleanupDelete}/>}
 
       {showPanel&&(
         <SidePanel card={editCard} boardId={editBoardId}
