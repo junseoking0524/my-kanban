@@ -965,17 +965,29 @@ const SECTIONS = [
 ] as const;
 
 function BlogScratchpad() {
-  const [memo,setMemo]=useState(()=>{try{return localStorage.getItem("kanban.0bokpapa.memo.v1")??"";}catch{return "";}});
-  const [format,setFormat]=useState(()=>{try{return localStorage.getItem("kanban.0bokpapa.format.v1")??BLOG_TEMPLATE;}catch{return BLOG_TEMPLATE;}});
+  const read=(field:"memo"|"format", fallback:string)=>{
+    try {const value=localStorage.getItem(`kanban.0bokpapa.${field}.v1`);return value?.trim()?value:fallback;}
+    catch {return fallback;}
+  };
+  const [memo,setMemo]=useState(()=>read("memo",""));
+  const [format,setFormat]=useState(()=>read("format",BLOG_TEMPLATE));
   const [notice,setNotice]=useState("");
   const [saveError,setSaveError]=useState("");
   const formatRef=useRef<HTMLTextAreaElement>(null);
+  const saved=useRef({memo,format});
+  const beforeEdit=useRef({memo,format});
   const save=(field:"memo"|"format", value:string)=>{
     (field==="memo"?setMemo:setFormat)(value);
-    setNotice("");
-    try { localStorage.setItem(`kanban.0bokpapa.${field}.v1`,value); setSaveError(""); }
-    catch { setSaveError("기기에 저장하지 못했습니다. 화면을 닫기 전에 내용을 복사해 주세요."); }
+    const text=value.trim()?value:beforeEdit.current[field]||saved.current[field];
+    setNotice(value.trim()||!text?"":"공란은 저장하지 않았습니다. 이전 내용을 복원할 수 있습니다.");
+    if(!text.trim()) return;
+    try {
+      localStorage.setItem(`kanban.0bokpapa.${field}.v1`,text);
+      saved.current[field]=text;
+      setSaveError("");
+    } catch { setSaveError("기기에 저장하지 못했습니다. 화면을 닫기 전에 내용을 복사해 주세요."); }
   };
+  const restore=(field:"memo"|"format")=>save(field,beforeEdit.current[field]||saved.current[field]);
   const copy=async()=>{
     try {await navigator.clipboard.writeText(format);setNotice("양식을 복사했습니다.");}
     catch {formatRef.current?.focus();formatRef.current?.select();setNotice("자동 복사가 막혀 있습니다. 선택한 양식을 직접 복사해 주세요.");}
@@ -983,15 +995,17 @@ function BlogScratchpad() {
   return <section className="sec-col" aria-label="0bokpapa 메모장" data-noswipe>
     <div className="sec-head done"><span className="sec-title">메모장</span></div>
     <div style={{display:"grid",gap:12,padding:10}}>
-      <textarea aria-label="블로그 메모장" value={memo} onChange={e=>save("memo",e.target.value)}
+      <textarea aria-label="블로그 메모장" value={memo} onFocus={()=>{beforeEdit.current.memo=memo.trim()?memo:saved.current.memo;}} onChange={e=>save("memo",e.target.value)}
         placeholder="아이디어, 취재 메모, 기억해 둘 문장…" rows={12}
         style={{width:"100%",boxSizing:"border-box",resize:"vertical",padding:10,border:"1px solid #d4d4d8",borderRadius:8,background:"#fff",lineHeight:1.6}}/>
+      {!memo.trim()&&saved.current.memo&&<button className="btn-light" onClick={()=>restore("memo")}>메모 복원</button>}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
         <label htmlFor="blog-copy-format" style={{fontWeight:700}}>블로그 양식</label>
-        <button className="btn-light" onClick={copy} disabled={!format} style={{padding:"5px 9px"}}>양식 복사</button>
+        <button className="btn-light" onClick={copy} disabled={!format.trim()} style={{padding:"5px 9px"}}>양식 복사</button>
       </div>
-      <textarea id="blog-copy-format" ref={formatRef} value={format} onChange={e=>save("format",e.target.value)} rows={7} spellCheck={false}
+      <textarea id="blog-copy-format" ref={formatRef} value={format} onFocus={()=>{beforeEdit.current.format=format.trim()?format:saved.current.format;}} onChange={e=>save("format",e.target.value)} rows={7} spellCheck={false}
         style={{width:"100%",boxSizing:"border-box",resize:"vertical",padding:10,border:"1px solid #d4d4d8",borderRadius:8,background:"#f4f4f5",fontFamily:"monospace",lineHeight:1.55,tabSize:2}}/>
+      {!format.trim()&&saved.current.format&&<button className="btn-light" onClick={()=>restore("format")}>양식 복원</button>}
       <small role="status" style={{color:"#52525b"}}>{saveError||notice||"메모와 양식은 이 브라우저에 자동 저장됩니다."}</small>
     </div>
   </section>;
