@@ -1,0 +1,342 @@
+.important-info {
+  max-width: 1180px;
+  margin: 12px auto 40px;
+  color: #25362e;
+}
+.ii-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 8px 0 25px;
+}
+.ii-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: #7f9186;
+}
+.ii-heading h1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 28px;
+  letter-spacing: -0.04em;
+  margin: 8px 0;
+}
+.ii-readonly {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: #6a7b70;
+  padding: 4px 8px;
+  border: 1px solid #dce4dd;
+  border-radius: 5px;
+}
+.ii-heading p {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #7c837f;
+  margin: 0;
+}
+.ii-total {
+  font-size: 11px;
+  color: #829086;
+  white-space: nowrap;
+}
+.ii-search-panel {
+  background: #fff;
+  border: 1px solid #e1e7e2;
+  padding: 20px;
+  border-radius: 15px;
+  box-shadow: 0 6px 25px #233d2b04;
+}
+.ii-search-panel > label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.ii-search-box {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: #f6f8f5;
+  border: 1px solid #dfe6df;
+  border-radius: 10px;
+  padding: 0 12px;
+}
+.ii-search-box > span {
+  font-size: 25px;
+  color: #7c9582;
+}
+.ii-search-box input {
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  padding: 13px 0;
+  outline: none;
+  font: 14px var(--font, sans-serif);
+  color: #25362e;
+}
+.ii-search-box:focus-within {
+  outline: 2px solid #8faa96;
+  outline-offset: 2px;
+}
+.important-info button {
+  font: inherit;
+  cursor: pointer;
+}
+.ii-search-box button {
+  border: 0;
+  background: transparent;
+  padding: 8px;
+  color: #68786b;
+}
+.ii-filters,
+.ii-entities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.ii-filters {
+  margin-top: 15px;
+}
+.ii-filters button {
+  background: #f4f6f3;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 7px 15px;
+  color: #758276;
+  font-size: 12px;
+}
+.ii-filters button[aria-pressed="true"] {
+  background: #294736;
+  color: #fff;
+}
+.ii-entities {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #eef1ec;
+}
+.ii-entities button {
+  border: 0;
+  background: transparent;
+  padding: 6px 10px;
+  border-radius: 5px;
+  color: #818b82;
+  font-size: 11px;
+}
+.ii-entities button[aria-pressed="true"] {
+  color: #34573e;
+  background: #edf4eb;
+  font-weight: 700;
+}
+.ii-results {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #818b82;
+  margin: 22px 2px 8px;
+}
+.ii-results strong {
+  color: #2f513a;
+}
+.ii-notice {
+  font-size: 11px;
+  color: #728474;
+  min-height: 20px;
+  margin: 0 2px 12px;
+  line-height: 1.6;
+}
+.ii-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.ii-card {
+  background: #fff;
+  border: 1px solid #e0e5df;
+  border-radius: 13px;
+  overflow: hidden;
+}
+.ii-card > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 18px 18px 12px;
+}
+.ii-entity {
+  color: #7b8e7d;
+  font-size: 10px;
+  font-weight: 600;
+}
+.ii-card h2 {
+  font-size: 15px;
+  margin: 6px 0 0;
+  letter-spacing: -0.025em;
+}
+.ii-copy-all {
+  font-size: 10px !important;
+  padding: 7px 10px;
+  border: 1px solid #e0e7df;
+  border-radius: 7px;
+  background: #fff;
+  color: #4b6a51;
+  white-space: nowrap;
+}
+.ii-card-fields {
+  padding: 0 18px 10px;
+}
+.ii-field {
+  margin-top: 10px;
+}
+.ii-field-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+  font-size: 10px;
+  color: #7c867e;
+}
+.ii-field-label button {
+  border: 0;
+  color: #4e7458;
+  background: transparent;
+  padding: 5px 7px;
+  font-size: 10px;
+}
+.ii-field pre {
+  margin: 0;
+  padding: 11px 12px;
+  background: #f4f6f3;
+  border: 1px solid #eaf0e8;
+  border-radius: 7px;
+  font:
+    13px/1.7 ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #2f4936;
+  user-select: text;
+}
+.ii-field pre.ii-pending {
+  color: #a2aca2;
+}
+.ii-card > footer {
+  border-top: 1px solid #eef1ed;
+  padding: 11px 18px;
+  color: #9aa39a;
+  font-size: 10px;
+}
+.important-info button:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+.important-info button:focus-visible {
+  outline: 2px solid #8faa96;
+  outline-offset: 2px;
+}
+.important-info button:not(:disabled):hover {
+  filter: brightness(0.93);
+}
+.ii-empty {
+  padding: 50px 20px;
+  text-align: center;
+  border: 1px dashed #cfd9cd;
+  border-radius: 13px;
+  background: #fafcf9;
+}
+.ii-empty > span {
+  font-size: 35px;
+  color: #8ca28d;
+}
+.ii-empty h2 {
+  font-size: 16px;
+}
+.ii-empty p {
+  font-size: 12px;
+  color: #819080;
+}
+.ii-empty button {
+  border: 1px solid #d0ddcc;
+  border-radius: 7px;
+  padding: 9px 16px;
+  background: #fff;
+  color: #446d48;
+  font-size: 12px;
+}
+@media (min-width: 1450px) {
+  .ii-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .important-info {
+    margin-top: 12px;
+  }
+  .ii-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .ii-heading {
+    margin-bottom: 18px;
+  }
+  .ii-heading h1 {
+    font-size: 25px;
+  }
+  .ii-total {
+    display: none;
+  }
+  .ii-search-panel {
+    padding: 16px;
+  }
+  .ii-search-box input {
+    font-size: 16px;
+  }
+  .ii-filters button {
+    flex: 1;
+    padding: 10px 8px;
+  }
+  .ii-entities button {
+    min-height: 36px;
+  }
+  .ii-copy-all {
+    min-height: 40px;
+  }
+  .ii-field-label button {
+    min-height: 36px;
+    padding: 6px 12px;
+  }
+  .ii-card > header {
+    padding: 16px 16px 8px;
+  }
+  .ii-card-fields {
+    padding: 0 16px 12px;
+  }
+}
+.ii-manual-copy {
+  display: block;
+  margin: 10px 0 20px;
+  font-size: 12px;
+  color: #526d58;
+}
+.ii-manual-copy textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 100px;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid #d2dfd0;
+  border-radius: 8px;
+  background: #fff;
+  font:
+    13px/1.7 ui-monospace,
+    monospace;
+}
