@@ -1,5 +1,6 @@
 {
   "crons": [
-    { "path": "/api/seoulthe1-daily", "schedule": "0 0 * * *" }
+    { "path": "/api/seoulthe1-daily", "schedule": "0 0 * * *" },
+    { "path": "/api/seoulthe1-place", "schedule": "40 0 * * *" }
   ]
 }
