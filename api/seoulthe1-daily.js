@@ -1,4 +1,7 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac } from 'node:crypto';
+import { authorized, sendTelegram, kstDate } from '../lib/telegram.js';
+
+export { kstDate };
 
 // 서울더원 파워링크 일일 알림: 어제(KST) 성과를 네이버 검색광고 API에서 읽어 텔레그램으로 보낸다.
 // 실행: Vercel Cron (vercel.json, 매일 00:00 UTC = 09:00 KST) 또는 수동 호출
@@ -10,16 +13,6 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 const BASE = 'https://api.searchad.naver.com';
 const RULES = { budgetShare: 0.8, costJump: 2.0, minCost: 1000, impDrop: 0.3, minAvgImp: 20 };
-
-const same = (a, b) => {
-  const x = Buffer.from(String(a)), y = Buffer.from(String(b));
-  return x.length === y.length && timingSafeEqual(x, y);
-};
-
-export function kstDate(offsetDays = 0, now = new Date()) {
-  const d = new Date(now.getTime() + 9 * 3600e3 + offsetDays * 86400e3);
-  return d.toISOString().slice(0, 10);
-}
 
 export function naverClient({ apiKey, secret, customerId, fetchImpl = fetch }) {
   return async function call(method, uri, params) {
@@ -101,24 +94,10 @@ export function buildDaily({ keywords, budget, y, p }, day, rules = RULES) {
   return { text: lines.join('\n'), alerts, imp, clk, cost };
 }
 
-async function sendTelegram(text) {
-  const r = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    signal: AbortSignal.timeout(10000),
-    body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, text: text.slice(0, 4096), link_preview_options: { is_disabled: true } }),
-  });
-  const data = await r.json();
-  if (!data.ok) throw new Error('텔레그램 오류: ' + (data.description || r.status));
-  return data.result?.message_id;
-}
-
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
-  const secrets = [process.env.CRON_SECRET, process.env.NOTIFY_SECRET].filter((s) => s && s.length >= 16);
-  if (!secrets.length) return res.status(503).json({ error: '환경변수 없음: CRON_SECRET' });
-  const supplied = String(req.headers.authorization || '').replace(/^Bearer /, '');
-  if (!secrets.some((s) => same(supplied, s))) return res.status(401).json({ error: '인증 실패' });
+  const auth = authorized(req);
+  if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
 
   const env = process.env;
   const apiKey = env.NAVER_API_KEY || env.NAVER_AD_API_KEY;
